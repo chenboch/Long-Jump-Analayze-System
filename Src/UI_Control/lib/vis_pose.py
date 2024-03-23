@@ -60,12 +60,18 @@ def joints_dict():
                 25: "右腳跟"
             },
             "skeleton_links":[
-                [0, 1], [0, 2], [1, 3], [2, 4],  # Head
-                [5, 18], [6, 18], [5, 7], [7, 9], [6, 8], [8, 10],  # Body
-                [17, 18], [18, 19], [19, 11], [19, 12],
-                [11, 13], [12, 14], [13, 15], [14, 16],
-                [20, 24], [21, 25], [23, 25], [22, 24], [15, 24], [16, 25]  # Foot
-            ]        
+                [0, 1], [0, 2], [1, 3], [2, 4], # 頭
+                [5, 18], [6, 18], [17, 18],[18, 19],#軀幹
+                [5, 7], [7, 9],                 #左手
+                [6, 8], [8, 10],                #右手
+                [19, 11], [11, 13], [13, 15],   #左腿
+                [19, 12], [12, 14], [14, 16],   #右腿
+                [20, 24], [22, 24], [15, 24],   #左腳
+                [21, 25], [23, 25], [16, 25]    #右腳
+            ],
+            
+            "left_points_indices": [[5, 18], [5, 7], [7, 9],[19, 11], [11, 13], [13, 15], [20, 24], [22, 24], [15, 24]],  # Indices of left hand, leg, and foot keypoints
+            "right_points_indices": [[6, 18], [6, 8], [8, 10], [19, 12], [12, 14], [14, 16], [21, 25], [23, 25], [16, 25]]  # Indices of right hand, leg, and foot keypoints
         },
     }
     return joints
@@ -143,17 +149,24 @@ def draw_skeleton(image, points, skeleton, color_palette='Set2', palette_samples
         colors = np.round(
             np.array(plt.get_cmap(color_palette)(np.linspace(0, 1, palette_samples))) * 255
         ).astype(np.uint8)[:, -2::-1].tolist()
-
+    right_skeleton = joints_dict()['haple']['right_points_indices']
+    left_skeleton = joints_dict()['haple']['left_points_indices']
+ 
     for i, joint in enumerate(skeleton):
         pt1, pt2 = points[joint]
         pt1_unlabel = False if pt1[0] != 0 and pt1[1] != 0 else True
         pt2_unlabel = False if pt2[0] != 0 and pt2[1] != 0 else True
+        skeleton_color = tuple(colors[person_index % len(colors)])
+        
+        if joint in right_skeleton:
+            skeleton_color = (255, 0, 0)
+        elif joint in left_skeleton:
+            skeleton_color = (0, 0, 255)
         if pt1[2] > confidence_threshold and not pt1_unlabel and pt2[2] > confidence_threshold and not pt2_unlabel:
             image = cv2.line(
                 image, (int(pt1[1]), int(pt1[0])), (int(pt2[1]), int(pt2[0])),
-                tuple(colors[person_index % len(colors)]), 2
+                skeleton_color , 2
             )
-
     return image
 
 def draw_points_and_skeleton(image, person_df, skeleton, points_color_palette='tab20', points_palette_samples=16,

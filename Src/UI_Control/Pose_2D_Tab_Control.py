@@ -27,6 +27,8 @@ from tracker.tracking_utils.timer import Timer
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+
 try:
     from mmdet.apis import inference_detector, init_detector
     has_mmdet = True
@@ -35,7 +37,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 class Pose_2d_Tab_Control(QMainWindow):
-
     def __init__(self):
         super(Pose_2d_Tab_Control, self).__init__()
         self.ui = Ui_MainWindow()
@@ -101,6 +102,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.label_kpt = False
         self.ID_lock = False
         self.select_id = 0
+        self.select_kpt_index = 0
 
         self.kpts_dict = joints_dict()['haple']['keypoints']
         try:
@@ -544,8 +546,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             else:
                 print("Previous frame data not found for smooth.")
         print("Smooth process is finished.")
-
-         
+  
     def ID_locker(self):
         if not self.ID_lock:
             self.ui.ID_selector.setEnabled(False)
@@ -620,10 +621,40 @@ class Pose_2d_Tab_Control(QMainWindow):
             process_frame_nums = sorted(self.person_df['frame_number'].unique())
             self.processed_frames = set(process_frame_nums) 
             self.import_id_to_selector(0)
+            self.show_figure()
             self.update_frame()
 
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
+
+    def show_figure(self):
+        person_id = int(self.ui.ID_selector.currentText())
+        process_frame_nums = sorted(self.person_df['frame_number'].unique())
+        person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+        kpt_datas = []
+        for kpt_data in person_kpt:
+            kpt_datas.append(kpt_data[self.select_kpt_index][0])
+        # 创建图表和 Axes 对象
+        fig, ax = plt.subplots()
+        # 绘制折线图
+        ax.plot(process_frame_nums, kpt_datas)
+        # 设置 X 轴和 Y 轴标签以及标题
+        ax.set_xlabel('Frame numbers')
+        ax.set_ylabel('Value')
+        ax.set_title('X')
+        # 将图表转换为图像
+        canvas = FigureCanvas(fig)
+        canvas.draw()
+        # 获取图像的宽度和高度
+        width, height = fig.get_size_inches() * fig.get_dpi()
+        # 将图像数据转换为 NumPy 数组
+        image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
+        # 在 QGraphicsView 中显示图像
+        scene = QGraphicsScene()
+        pixmap = QPixmap.fromImage(QImage(image.data, image.shape[1], image.shape[0], QImage.Format_RGB888))
+        scene.addPixmap(pixmap)
+        self.ui.Chart_View.setScene(scene)
+        self.ui.Chart_View.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
