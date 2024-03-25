@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>883</width>
-    <height>825</height>
+    <width>961</width>
+    <height>765</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,9 +21,9 @@
        <attribute name="title">
         <string>2D Pose</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="13,6,1">
           <item>
            <widget class="QGraphicsView" name="Frame_View">
             <property name="minimumSize">
@@ -35,20 +35,34 @@
            </widget>
           </item>
           <item>
-           <widget class="QGraphicsView" name="Chart_View">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="minimumSize">
-             <size>
-              <width>480</width>
-              <height>120</height>
-             </size>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_6">
+            <item>
+             <widget class="QGraphicsView" name="x_figure_view">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>256</width>
+                <height>256</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGraphicsView" name="y_figure_view">
+              <property name="minimumSize">
+               <size>
+                <width>256</width>
+                <height>256</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -206,9 +220,9 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="smooth_data_btn">
+                 <widget class="QPushButton" name="start_code_btn">
                   <property name="text">
-                   <string>Smooth Data</string>
+                   <string>Start Code</string>
                   </property>
                  </widget>
                 </item>
@@ -258,6 +272,13 @@
               <widget class="QSpinBox" name="li_interval">
                <property name="minimum">
                 <number>1</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="smooth_data_btn">
+               <property name="text">
+                <string>Smooth Data</string>
                </property>
               </widget>
              </item>
@@ -327,7 +348,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>883</width>
+     <width>961</width>
      <height>21</height>
     </rect>
    </property>

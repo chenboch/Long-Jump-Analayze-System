@@ -25,12 +25,12 @@ def video_to_frame(input_video_path):
     frame_counter = 0
     count = 0
     while success:
-        # load in even number frame only
-        if not frame_counter & 1:
-            video_images.append(image)
-            count += 1
+        # # load in even number frame only
+        # if not frame_counter & 1:
+        video_images.append(image)
+        count += 1
         success, image = vidcap.read()
-        frame_counter += 1
+        # frame_counter += 1
     vidcap.release()
     fps = int(fps) >> 1
     # set image count labels

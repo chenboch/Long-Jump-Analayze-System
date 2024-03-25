@@ -69,6 +69,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.li_btn.clicked.connect(self.linear_interpolation)
         self.ui.load_data_btn.clicked.connect(self.load_json)
         self.ui.smooth_data_btn.clicked.connect(self.smooth_data)
+        self.ui.start_code_btn.clicked.connect(self.start_analyze_frame)
 
     def init_model(self):
         self.detector = init_detector(
@@ -243,8 +244,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             label_item.setToolTip("")
         return data_path  
 
-    def show_image(self, image: np.ndarray, scene: QGraphicsScene, GraphicsView: QGraphicsView):
-        
+    def show_image(self, image: np.ndarray, scene: QGraphicsScene, GraphicsView: QGraphicsView): 
         scene.clear()
         image = image.copy()
         w, h = image.shape[1], image.shape[0]
@@ -344,6 +344,16 @@ class Pose_2d_Tab_Control(QMainWindow):
         except IndexError:
             print("索引超出范围")
 
+    def start_analyze_frame(self):
+        for i in range(0, self.total_images-1):
+            image = self.video_images[i]
+            pred_instances, person_ids = process_one_image(self.args, image, self.detector, self.pose_estimator, self.tracker)
+            # the keyscore > 1.0??
+            person_kpts = self.merge_keypoint_datas(pred_instances)
+            person_bboxes = pred_instances['bboxes']
+            self.merge_person_datas(i, person_ids, person_bboxes, person_kpts)
+            self.processed_frames.add(i)
+
     def analyze_frame(self):
         frame_num = self.ui.frame_slider.value()
         self.ui.frame_num_label.setText(
@@ -371,8 +381,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.import_id_to_selector(frame_num)
         else:
             self.check_id_exist(frame_num)
-        self.import_data_to_table(frame_num)
-        
+        self.import_data_to_table(frame_num)  
         self.update_frame()
 
     def update_frame(self):
@@ -621,27 +630,35 @@ class Pose_2d_Tab_Control(QMainWindow):
             process_frame_nums = sorted(self.person_df['frame_number'].unique())
             self.processed_frames = set(process_frame_nums) 
             self.import_id_to_selector(0)
-            self.show_figure()
+            person_id = int(self.ui.ID_selector.currentText())
+
+            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+            x_kpt_datas = []
+            y_kpt_datas = []
+            for kpt_datas in person_kpt:
+                x_kpt_datas.append(kpt_datas[self.select_kpt_index][0])
+                y_kpt_datas.append(kpt_datas[self.select_kpt_index][1])
+            x_figure_dict = {'x':process_frame_nums, 'y': x_kpt_datas}
+            y_figure_dict = {'x':process_frame_nums, 'y': y_kpt_datas}
+
+            self.show_figure(x_figure_dict, self.ui.x_figure_view, 'X')
+            self.show_figure(y_figure_dict, self.ui.y_figure_view, 'Y')
             self.update_frame()
 
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
-    def show_figure(self):
-        person_id = int(self.ui.ID_selector.currentText())
-        process_frame_nums = sorted(self.person_df['frame_number'].unique())
-        person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-        kpt_datas = []
-        for kpt_data in person_kpt:
-            kpt_datas.append(kpt_data[self.select_kpt_index][0])
+    def show_figure(self, data, graphicview, title):
+        xaxis = data['x']
+        yaxis = data['y']
         # 创建图表和 Axes 对象
         fig, ax = plt.subplots()
         # 绘制折线图
-        ax.plot(process_frame_nums, kpt_datas)
+        ax.plot(xaxis, yaxis)
         # 设置 X 轴和 Y 轴标签以及标题
         ax.set_xlabel('Frame numbers')
         ax.set_ylabel('Value')
-        ax.set_title('X')
+        ax.set_title(title)
         # 将图表转换为图像
         canvas = FigureCanvas(fig)
         canvas.draw()
@@ -649,12 +666,12 @@ class Pose_2d_Tab_Control(QMainWindow):
         width, height = fig.get_size_inches() * fig.get_dpi()
         # 将图像数据转换为 NumPy 数组
         image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
-        # 在 QGraphicsView 中显示图像
         scene = QGraphicsScene()
         pixmap = QPixmap.fromImage(QImage(image.data, image.shape[1], image.shape[0], QImage.Format_RGB888))
         scene.addPixmap(pixmap)
-        self.ui.Chart_View.setScene(scene)
-        self.ui.Chart_View.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+        graphicview.setScene(scene)
+        graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
