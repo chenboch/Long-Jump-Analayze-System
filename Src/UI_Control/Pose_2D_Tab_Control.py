@@ -1,20 +1,22 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QImage, QPixmap
+# from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QPainter, QPen, QColor, QImage, QPixmap
 from PyQt5.QtCore import Qt, QPointF
 import numpy as np
 import sys
+import time
 import cv2
 import os
 from UI import Ui_MainWindow
 import matplotlib.pyplot as plt
 import pandas as pd
 from argparse import ArgumentParser
-import time
 from argparse import ArgumentParser
 import cv2
 import numpy as np
 from lib.cv_thread import VideoToImagesThread
 from lib.util import DataType
+from lib.timer import Timer
 from lib.vis_pose import draw_points_and_skeleton, joints_dict
 from Widget.store import Store_Widget
 from topdown_demo_with_mmdet import process_one_image
@@ -51,6 +53,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.clear_table_view()
         self.ui.load_video_btn.clicked.connect(
             lambda: self.load_video(self.ui.video_label, self.db_path + "/videos/"))
+        # self.ui.store_video_btn.clicked.connect(self.store_video)
         self.ui.play_btn.clicked.connect(self.play_btn_clicked)
         self.ui.back_key_btn.clicked.connect(
             lambda: self.ui.frame_slider.setValue(self.ui.frame_slider.value() - 1)
@@ -59,7 +62,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             lambda: self.ui.frame_slider.setValue(self.ui.frame_slider.value() + 1)
         )
         self.ui.frame_slider.valueChanged.connect(self.analyze_frame)
-        self.ui.ID_selector.currentIndexChanged.connect(lambda: self.import_data_to_table(self.ui.frame_slider.value()))
+        self.ui.ID_selector.currentTextChanged.connect(lambda: self.import_data_to_table(self.ui.frame_slider.value()))
         self.ui.correct_btn.clicked.connect(self.update_person_df)
         self.ui.show_skeleton_checkBox.setChecked(True)
         self.ui.ID_Locker.clicked.connect(self.ID_locker)
@@ -82,9 +85,10 @@ class Pose_2d_Tab_Control(QMainWindow):
             model=dict(test_cfg=dict(output_heatmaps=self.args.draw_heatmap))))
         self.tracker = BoTSORT(self.tracker_args, frame_rate=30.0)
         self.smooth_tool = OneEuroFilter()
+        self.timer = Timer()
 
     def init_var(self):
-        self.db_path = "../../Db"
+        self.db_path = f"../../Db"
         self.is_paly = False
         self.is_play=False
         self.processed_images=-1
@@ -105,7 +109,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.select_id = 0
         self.select_kpt_index = 0
 
-        self.kpts_dict = joints_dict()['haple']['keypoints']
+        self.kpts_dict = joints_dict()['coco']['keypoints']
         try:
             self.colors = np.round(
                 np.array(plt.get_cmap('gist_rainbow').colors) * 255
@@ -223,7 +227,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.v_t=VideoToImagesThread(self.video_path)
         self.v_t.emit_signal.connect(self.video_to_frame)
         self.v_t.start()
-    
+
     def load_data(self, label_item, dir_path="", value_filter=None, mode=DataType.DEFAULT):
         data_path = None
         if mode == DataType.FOLDER:
@@ -367,7 +371,13 @@ class Pose_2d_Tab_Control(QMainWindow):
         image = ori_image.copy()
 
         if frame_num not in self.processed_frames:
+            self.timer.tic()
             pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.pose_estimator,self.tracker)
+            average_time = self.timer.toc()
+            fps= int(1/max(average_time,0.00001))
+            self.ui.fps_label.setText(f"FPS: {fps}")
+            # print(f"process_one_image FPS: {fps}")
+            # pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.pose_estimator,self.tracker)
             # the keyscore > 1.0??
             person_kpts = self.merge_keypoint_datas(pred_instances)
             person_bboxes = pred_instances['bboxes']
@@ -382,17 +392,18 @@ class Pose_2d_Tab_Control(QMainWindow):
         else:
             self.check_id_exist(frame_num)
         self.import_data_to_table(frame_num)  
-        self.update_frame()
-
+        
     def update_frame(self):
+        
         curr_person_df, frame_num= self.obtain_curr_data()
         image=self.video_images[frame_num].copy()
         # if self.ui.show_skeleton_checkBox.isChecked():
-        image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
-                                        points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
-                                        points_palette_samples=10, confidence_threshold=0.3)
-        if self.ui.show_bbox_checkbox.isChecked():
-            self.draw_bbox(curr_person_df, image)
+        if not curr_person_df.empty:
+            image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['coco']['skeleton_links'], 
+                                            points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
+                                            points_palette_samples=10, confidence_threshold=0.3)
+            if self.ui.show_bbox_checkbox.isChecked():
+                self.draw_bbox(curr_person_df, image)
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
 
@@ -400,9 +411,10 @@ class Pose_2d_Tab_Control(QMainWindow):
         frame_num = self.ui.frame_slider.value()
         if self.ui.show_skeleton_checkBox.isChecked():
             try :
-                person_id = int(self.ui.ID_selector.currentText())
-                curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
-                                                    (self.person_df['person_id'] == person_id)]
+                if self.ui.ID_selector.count() > 0:
+                    person_id = int(self.ui.ID_selector.currentText())
+                    curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
+                                                        (self.person_df['person_id'] == person_id)]
             except ValueError:
                 print("valueError")
         else:
@@ -413,7 +425,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         try:
             curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
             if curr_person_df.empty:
-                print("未找到特定幀的數據")
+                print("check_id_exist未找到特定幀的數據")
                 return
             person_ids = sorted(curr_person_df['person_id'].unique())
             if self.select_id not in person_ids:
@@ -421,14 +433,15 @@ class Pose_2d_Tab_Control(QMainWindow):
                 self.ui.ID_Locker.click()
 
         except KeyError:
-            print("未找到'frame_number'或'person_id'列")
+            # print("未找到'frame_number'或'person_id'列")
+            pass
 
     def import_id_to_selector(self, frame_num):
         try:
             self.ui.ID_selector.clear()
             filter_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
             if filter_person_df.empty:
-                print("未找到特定幀的數據")
+                print("import_id_to_selector未找到特定幀的數據")
                 return
 
             person_ids = sorted(filter_person_df['person_id'].unique())
@@ -436,7 +449,8 @@ class Pose_2d_Tab_Control(QMainWindow):
                 self.ui.ID_selector.addItem(str(person_id))
 
         except KeyError:
-            print("未找到'frame_number'或'person_id'列")
+            # print("未找到'frame_number'或'person_id'列")
+            pass
 
     def import_data_to_table(self, frame_num):
         try:
@@ -453,6 +467,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
             if person_data.empty:
                 print("未找到特定人員在特定幀的數據")
+                self.clear_table_view()
                 return
 
             # 確保表格視圖大小足夠
@@ -473,7 +488,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                 self.ui.Keypoint_Table.setItem(kpt_idx, 0, kpt_name_item)
                 self.ui.Keypoint_Table.setItem(kpt_idx, 1, kptx_item)
                 self.ui.Keypoint_Table.setItem(kpt_idx, 2, kpty_item)
-
+            self.update_frame()
         except ValueError:
             print("未找到人員的ID列表")
         except AttributeError:
@@ -615,12 +630,13 @@ class Pose_2d_Tab_Control(QMainWindow):
             else:
                 super().keyPressEvent(event)
 
+
     def load_json(self):
-        # 打开文件对话框以选择 JSON 文件
+        # 打開文件對話框以選擇 JSON 文件
         json_path, _ = QFileDialog.getOpenFileName(
             self, "选择要加载的 JSON 文件", "", "JSON 文件 (*.json)")
 
-        # 如果用户取消选择文件，则返回
+        # 如果用戶取消選擇文件，則返回
         if not json_path:
             return
 
@@ -649,29 +665,32 @@ class Pose_2d_Tab_Control(QMainWindow):
             print(f"加载 JSON 文件时出错：{e}")
 
     def show_figure(self, data, graphicview, title):
+        scene = QGraphicsScene()
+        pen = QPen(Qt.blue)
+        scene.addText(title)
+
         xaxis = data['x']
         yaxis = data['y']
-        # 创建图表和 Axes 对象
-        fig, ax = plt.subplots()
-        # 绘制折线图
-        ax.plot(xaxis, yaxis)
-        # 设置 X 轴和 Y 轴标签以及标题
-        ax.set_xlabel('Frame numbers')
-        ax.set_ylabel('Value')
-        ax.set_title(title)
-        # 将图表转换为图像
-        canvas = FigureCanvas(fig)
-        canvas.draw()
-        # 获取图像的宽度和高度
-        width, height = fig.get_size_inches() * fig.get_dpi()
-        # 将图像数据转换为 NumPy 数组
-        image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
-        scene = QGraphicsScene()
-        pixmap = QPixmap.fromImage(QImage(image.data, image.shape[1], image.shape[0], QImage.Format_RGB888))
-        scene.addPixmap(pixmap)
-        graphicview.setScene(scene)
-        graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
 
+        # 設置圖表範圍
+        x_min, x_max = min(xaxis), max(xaxis)
+        y_min, y_max = min(yaxis), max(yaxis)
+
+        # 計算轉換比例
+        width = graphicview.width() 
+        height = graphicview.height()
+        x_scale = width / (x_max - x_min)
+        y_scale = height / (y_max - y_min)
+
+        prev_point = None
+        for x, y in zip(xaxis, yaxis):
+            x_coord = (x - x_min) * x_scale
+            y_coord = height - (y - y_min) * y_scale  # flip y-axis
+            if prev_point:
+                scene.addLine(prev_point.x(), prev_point.y(), x_coord, y_coord, pen)
+            prev_point = QPointF(x_coord, y_coord)
+
+        graphicview.setScene(scene)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

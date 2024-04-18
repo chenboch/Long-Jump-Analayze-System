@@ -17,6 +17,9 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <widget class="QTabWidget" name="Two_d_Tab">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
       <widget class="QWidget" name="widget">
        <attribute name="title">
         <string>2D Pose</string>
@@ -187,6 +190,13 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="QLabel" name="fps_label">
+                  <property name="text">
+                   <string>FPS:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QPushButton" name="load_video_btn">
                   <property name="minimumSize">
                    <size>
@@ -333,11 +343,6 @@
          </widget>
         </item>
        </layout>
-      </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Tab 2</string>
-       </attribute>
       </widget>
      </widget>
     </item>

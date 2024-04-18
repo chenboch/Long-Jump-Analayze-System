@@ -26,9 +26,15 @@ def joints_dict():
                 16: "右腳踝"
             },
             "skeleton_links": [
-                [15, 13], [13, 11], [16, 14], [14, 12], [11, 12], [5, 11],[6, 12],[5, 6], [5, 7], [6, 8],
-                [7, 9],[8, 10], [1, 2], [0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 6]
-            ]
+                [0, 1], [0, 2], [1, 3], [2, 4], # 頭
+                #軀幹
+                [5, 7], [7, 9],                 #左手
+                [6, 8], [8, 10],                #右手
+                [11, 13], [13, 15],   #左腿
+                [12, 14], [14, 16],   #右腿
+            ],
+            "left_points_indices": [[5, 7], [7, 9], [11, 13], [13, 15]],  # Indices of left hand, leg, and foot keypoints
+            "right_points_indices": [[6, 8], [8, 10], [12, 14], [14, 16]]  # Indices of right hand, leg, and foot keypoints
         },
         "haple":{
             "keypoints": {
@@ -149,8 +155,8 @@ def draw_skeleton(image, points, skeleton, color_palette='Set2', palette_samples
         colors = np.round(
             np.array(plt.get_cmap(color_palette)(np.linspace(0, 1, palette_samples))) * 255
         ).astype(np.uint8)[:, -2::-1].tolist()
-    right_skeleton = joints_dict()['haple']['right_points_indices']
-    left_skeleton = joints_dict()['haple']['left_points_indices']
+    right_skeleton = joints_dict()['coco']['right_points_indices']
+    left_skeleton = joints_dict()['coco']['left_points_indices']
  
     for i, joint in enumerate(skeleton):
         pt1, pt2 = points[joint]

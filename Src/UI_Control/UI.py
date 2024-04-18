@@ -94,6 +94,9 @@ class Ui_MainWindow(object):
         self.video_label.setText("")
         self.video_label.setObjectName("video_label")
         self.verticalLayout_4.addWidget(self.video_label)
+        self.fps_label = QtWidgets.QLabel(self.groupBox)
+        self.fps_label.setObjectName("fps_label")
+        self.verticalLayout_4.addWidget(self.fps_label)
         self.load_video_btn = QtWidgets.QPushButton(self.groupBox)
         self.load_video_btn.setMinimumSize(QtCore.QSize(150, 20))
         self.load_video_btn.setObjectName("load_video_btn")
@@ -159,9 +162,6 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.addWidget(self.correct_btn)
         self.horizontalLayout_7.addWidget(self.Adjust_Group_Box)
         self.Two_d_Tab.addTab(self.widget, "")
-        self.tab_2 = QtWidgets.QWidget()
-        self.tab_2.setObjectName("tab_2")
-        self.Two_d_Tab.addTab(self.tab_2, "")
         self.verticalLayout.addWidget(self.Two_d_Tab)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
@@ -173,6 +173,7 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
 
         self.retranslateUi(MainWindow)
+        self.Two_d_Tab.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -184,6 +185,7 @@ class Ui_MainWindow(object):
         self.frame_num_label.setText(_translate("MainWindow", "0/0"))
         self.Adjust_Group_Box.setTitle(_translate("MainWindow", "2D Pose"))
         self.groupBox.setTitle(_translate("MainWindow", "File"))
+        self.fps_label.setText(_translate("MainWindow", "FPS:"))
         self.load_video_btn.setText(_translate("MainWindow", "Load Video"))
         self.store_data_btn.setText(_translate("MainWindow", "Store Data"))
         self.load_data_btn.setText(_translate("MainWindow", "Load Data"))
@@ -202,7 +204,6 @@ class Ui_MainWindow(object):
         item.setText(_translate("MainWindow", "Y"))
         self.correct_btn.setText(_translate("MainWindow", "改正"))
         self.Two_d_Tab.setTabText(self.Two_d_Tab.indexOf(self.widget), _translate("MainWindow", "2D Pose"))
-        self.Two_d_Tab.setTabText(self.Two_d_Tab.indexOf(self.tab_2), _translate("MainWindow", "Tab 2"))
 
 
 if __name__ == "__main__":
