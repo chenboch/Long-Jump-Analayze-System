@@ -1,10 +1,10 @@
 from PyQt5.QtWidgets import *
 # from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtGui import QPainter, QPen, QColor, QImage, QPixmap
+from PyQt5.QtGui import QPainter, QPen, QColor, QImage, QPixmap, QFont
+from scipy.signal import find_peaks
 from PyQt5.QtCore import Qt, QPointF
 import numpy as np
 import sys
-import time
 import cv2
 import os
 from UI import Ui_MainWindow
@@ -29,6 +29,7 @@ from tracker.tracking_utils.timer import Timer
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter
+import pyqtgraph as pg
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 try:
@@ -73,6 +74,8 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.load_data_btn.clicked.connect(self.load_json)
         self.ui.smooth_data_btn.clicked.connect(self.smooth_data)
         self.ui.start_code_btn.clicked.connect(self.start_analyze_frame)
+        self.ui.set_length_btn.clicked.connect(self.set_length)
+        self.ui.frame_number_confirm_btn.clicked.connect(self.set_frame_ratio)
 
     def init_model(self):
         self.detector = init_detector(
@@ -86,6 +89,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.tracker = BoTSORT(self.tracker_args, frame_rate=30.0)
         self.smooth_tool = OneEuroFilter()
         self.timer = Timer()
+        pg.setConfigOptions(foreground=QColor(113,148,116), antialias = True)
 
     def init_var(self):
         self.db_path = f"../../Db"
@@ -93,6 +97,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.is_play=False
         self.processed_images=-1
         self.fps = 30
+        self.frame_ratio = 1/120
         self.video_images=[]
         self.video_path = ""
         self.is_threading=False
@@ -100,14 +105,19 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.video_scene.clear()
         self.correct_kpt_idx = 0
         self.video_name = ""
-        
+
+        self.length_ratio = 0
+        self.start_frame_num = 0
+        self.end_line_pos = 0
+        self.is_set_length = False
+
         self.processed_frames = set()
         self.person_df = pd.DataFrame()
         self.person_data = []
         self.label_kpt = False
         self.ID_lock = False
         self.select_id = 0
-        self.select_kpt_index = 0
+        self.select_kpt_index = 11
 
         self.kpts_dict = joints_dict()['coco']['keypoints']
         try:
@@ -294,12 +304,15 @@ class Pose_2d_Tab_Control(QMainWindow):
             # time.sleep(0.1)
             cv2.waitKey(15)
 
-    def merge_keypoint_datas(self,pred_instances):
+    def merge_keypoint_datas(self, pred_instances):
         person_kpts = []
         for person in pred_instances:
-            kpts = np.round(person['keypoints'][0],2)
-            kpt_scores = np.round(person['keypoint_scores'][0],2)
+            kpts = np.round(person['keypoints'][0], 2)
+            kpt_scores = np.round(person['keypoint_scores'][0], 2)
             kpt_datas = np.hstack((kpts, kpt_scores.reshape(-1, 1)))
+            
+            # Add a boolean value to each element in kpt_datas
+            kpt_datas = np.hstack((kpt_datas, np.full((len(kpt_datas), 1), False, dtype=bool)))
             person_kpts.append(kpt_datas)
         return person_kpts
 
@@ -391,14 +404,16 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.import_id_to_selector(frame_num)
         else:
             self.check_id_exist(frame_num)
+        self.obtain_velocity()
+        self.obtain_distance()
         self.import_data_to_table(frame_num)  
+        self.update_frame()
         
     def update_frame(self):
-        
         curr_person_df, frame_num= self.obtain_curr_data()
         image=self.video_images[frame_num].copy()
         # if self.ui.show_skeleton_checkBox.isChecked():
-        if not curr_person_df.empty:
+        if not curr_person_df.empty :
             image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['coco']['skeleton_links'], 
                                             points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
                                             points_palette_samples=10, confidence_threshold=0.3)
@@ -406,19 +421,21 @@ class Pose_2d_Tab_Control(QMainWindow):
                 self.draw_bbox(curr_person_df, image)
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
+        # self.show_figure()
 
     def obtain_curr_data(self):
+        curr_person_df = pd.DataFrame()
         frame_num = self.ui.frame_slider.value()
-        if self.ui.show_skeleton_checkBox.isChecked():
-            try :
-                if self.ui.ID_selector.count() > 0:
-                    person_id = int(self.ui.ID_selector.currentText())
-                    curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
-                                                        (self.person_df['person_id'] == person_id)]
-            except ValueError:
-                print("valueError")
-        else:
-            curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
+        if self.ui.ID_selector.count() > 0:
+            if self.ui.show_skeleton_checkBox.isChecked():
+                try :
+                        person_id = int(self.ui.ID_selector.currentText())
+                        curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
+                                                            (self.person_df['person_id'] == person_id)]
+                except ValueError:
+                    print("valueError")
+            else:
+                curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
         return curr_person_df, frame_num
 
     def check_id_exist(self,frame_num):
@@ -441,11 +458,13 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.ui.ID_selector.clear()
             filter_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
             if filter_person_df.empty:
-                print("import_id_to_selector未找到特定幀的數據")
+                # print("import_id_to_selector未找到特定幀的數據")
+                self.clear_table_view()
                 return
 
             person_ids = sorted(filter_person_df['person_id'].unique())
             for person_id in person_ids:
+                # if person_id != 1 :
                 self.ui.ID_selector.addItem(str(person_id))
 
         except KeyError:
@@ -477,20 +496,25 @@ class Pose_2d_Tab_Control(QMainWindow):
 
             # 將關鍵點數據匯入到表格視圖中
             for kpt_idx, kpt in enumerate(person_data['keypoints'].iloc[0]): 
-                kptx, kpty = kpt[0], kpt[1]
+                kptx, kpty, kpt_label = kpt[0], kpt[1], kpt[3]
                 kpt_name = self.kpts_dict[kpt_idx]
                 kpt_name_item = QTableWidgetItem(str(kpt_name))
                 kptx_item = QTableWidgetItem(str(kptx))
                 kpty_item = QTableWidgetItem(str(kpty))
+                if kpt_label :
+                    kpt_label_item = QTableWidgetItem("Y")
+                else:
+                    kpt_label_item = QTableWidgetItem("N")
                 kpt_name_item.setTextAlignment(Qt.AlignRight)
                 kptx_item.setTextAlignment(Qt.AlignRight)
                 kpty_item.setTextAlignment(Qt.AlignRight)
+                kpt_label_item.setTextAlignment(Qt.AlignRight)
                 self.ui.Keypoint_Table.setItem(kpt_idx, 0, kpt_name_item)
                 self.ui.Keypoint_Table.setItem(kpt_idx, 1, kptx_item)
                 self.ui.Keypoint_Table.setItem(kpt_idx, 2, kpty_item)
-            self.update_frame()
-        except ValueError:
-            print("未找到人員的ID列表")
+                self.ui.Keypoint_Table.setItem(kpt_idx, 3, kpt_label_item)
+        # except ValueError:
+        #     print("未找到人員的ID列表")
         except AttributeError:
             print("未找到人員ID")
         except KeyError:
@@ -498,8 +522,8 @@ class Pose_2d_Tab_Control(QMainWindow):
             
     def clear_table_view(self):
         self.ui.Keypoint_Table.clear()
-        self.ui.Keypoint_Table.setColumnCount(3)
-        title = ["Keypoint", "X", "Y"]
+        self.ui.Keypoint_Table.setColumnCount(4)
+        title = ["Keypoint", "X", "Y", "Modify"]
         self.ui.Keypoint_Table.setHorizontalHeaderLabels(title)
 
     def draw_bbox(self, person_data, img):
@@ -516,28 +540,58 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.correct_kpt_idx = row
         self.label_kpt = True
     
-    def send_to_table(self, kptx, kpty):
+    def send_to_table(self, kptx, kpty, kpt_label):
     
         kptx_item = QTableWidgetItem(str(kptx))
         kpty_item = QTableWidgetItem(str(kpty))
+        if kpt_label :
+            kpt_label_item = QTableWidgetItem("Y")
+        else:
+            kpt_label_item = QTableWidgetItem("N")
         kptx_item.setTextAlignment(Qt.AlignRight)
         kpty_item.setTextAlignment(Qt.AlignRight)
+        kpt_label_item.setTextAlignment(Qt.AlignRight)
         self.ui.Keypoint_Table.setItem(self.correct_kpt_idx, 1, kptx_item)
         self.ui.Keypoint_Table.setItem(self.correct_kpt_idx, 2, kpty_item)
+        self.ui.Keypoint_Table.setItem(self.correct_kpt_idx, 3, kpt_label_item)
         self.update_person_df()
-            
+
+    def set_length(self):
+        self.is_set_length = True
+        self.line_pos = []
+
     def mousePressEvent(self, event):
         if self.label_kpt:
             pos = event.pos()
             scene_pos = self.ui.Frame_View.mapToScene(pos)
             kptx, kpty = scene_pos.x(), scene_pos.y()
+            kpt_label = 1
             if event.button() == Qt.LeftButton:
-                self.send_to_table(kptx, kpty)
+                self.send_to_table(kptx, kpty,kpt_label)
             elif event.button() == Qt.RightButton:
                 print("t")
                 kptx, kpty = 0, 0
-                self.send_to_table(kptx, kpty)
+                self.send_to_table(kptx, kpty, 0)
             self.label_kpt = False
+        
+        if self.is_set_length:
+            pos = event.pos()
+            scene_pos = self.ui.Frame_View.mapToScene(pos)
+            pos_x, pos_y = scene_pos.x(), scene_pos.y()
+            pos = [pos_x, pos_y]
+            # self.draw_point(pos)
+            self.line_pos = np.append(self.line_pos, pos)
+            if len(self.line_pos) == 4:
+                # print(self.line_pos)
+                self.end_line_pos = self.line_pos[0]
+                print(self.end_line_pos)
+                pos_f = np.array([self.line_pos[0], self.line_pos[1]])
+                pos_s = np.array([self.line_pos[2], self.line_pos[3]])
+                length = np.linalg.norm(pos_f - pos_s)
+                self.length_ratio = 2/length
+                print(self.length_ratio)
+                self.is_set_length = False
+                QMessageBox.information(self, "設定長度", "設定長度完成!")
 
     def smooth_data(self):
         for curr_frame_num in self.processed_frames:
@@ -630,7 +684,6 @@ class Pose_2d_Tab_Control(QMainWindow):
             else:
                 super().keyPressEvent(event)
 
-
     def load_json(self):
         # 打開文件對話框以選擇 JSON 文件
         json_path, _ = QFileDialog.getOpenFileName(
@@ -664,33 +717,210 @@ class Pose_2d_Tab_Control(QMainWindow):
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
-    def show_figure(self, data, graphicview, title):
+    def set_frame_ratio(self):
+        self.frame_ratio = 1 / self.ui.frame_number_selector.value()
+        print(self.frame_ratio)
+
+    def obtain_velocity(self):
+        if self.ui.ID_selector.count() > 0 :
+            person_id = int(self.ui.ID_selector.currentText())
+            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+            if len(person_kpt) > 0 and self.start_frame_num ==0 :
+                self.start_frame_num = self.ui.frame_slider.value()
+            if self.start_frame_num != 0: 
+                person_kpt = person_kpt.to_numpy()
+                l_x_kpt_datas = []
+                l_y_kpt_datas = []
+                pos_x = []
+                pos_y = []
+                v = []
+                t = []
+                l = self.ui.frame_slider.value() - self.start_frame_num
+                # if l > 2:
+                for i in range(l):
+                    l_x_kpt_datas.append(person_kpt[i][5][0])
+                    l_y_kpt_datas.append(person_kpt[i][5][1])
+                # print(l_x_kpt_datas)
+                for i in range(len(l_x_kpt_datas)):
+                    if i % 60 == 0:
+                        # print(l_x_kpt_datas)
+                        pos_x.append([l_x_kpt_datas[i]])
+                        pos_y.append([l_y_kpt_datas[i]])
+                # print(pos_x)
+                if len(pos_x) > 1 :
+                    for i in range(len(pos_x)):
+                        # print(i)
+                        if i > 0:
+                        
+                            pos_f = np.array([pos_x[i-1], pos_y[i-1]])
+                            pos_s = np.array([pos_x[i], pos_y[i]])
+                            if pos_f[0] > self.end_line_pos:
+                                length = np.linalg.norm(pos_f - pos_s)
+                                temp_v = (length * self.length_ratio) / (60 * self.frame_ratio)
+                                # print(temp_v)
+                                # exit()
+                                v.append(temp_v) 
+                            else:
+                                v.append(0)
+                        else:
+                            v.append(0)
+                # print(v)
+                for i in range(len(v)):
+                    temp_t = self.start_frame_num + i * 60
+                    t.append(temp_t)
+                # print(t)
+                title = 'Speed'
+                if len(t) > 0:
+                    self.show_figure(t, v, self.ui.y_figure_view, title)
+
+    def obtain_distance(self):
+        if self.ui.ID_selector.count() > 0 :
+            person_id = int(self.ui.ID_selector.currentText())
+            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+
+            if self.start_frame_num != 0: 
+                person_kpt = person_kpt.to_numpy()
+                l_x_ankle_datas = []
+                l_y_ankle_datas = []
+
+                r_x_ankle_datas = []
+                # r_y_ankle_datas = []
+                temp_d = []
+                d = []
+                l = self.ui.frame_slider.value() - self.start_frame_num
+                # if l > 2:
+                for i in range(l):
+                    if person_kpt[i][15][0] > self.end_line_pos and person_kpt[i][16][0] > self.end_line_pos:
+                        l_x_ankle_datas.append(person_kpt[i][15][0])
+                        r_x_ankle_datas.append(person_kpt[i][16][0])
+                    else:
+                        pass
+
+                if len(l_x_ankle_datas) > 0:
+                    for i in range(len(l_x_ankle_datas)):
+                        x_d = abs(l_x_ankle_datas[i] - r_x_ankle_datas[i])
+                        temp_d.append(x_d)
+
+                temp_d = np.array(temp_d)
+
+                # 找出波峰
+                peaks, _ = find_peaks(temp_d, prominence=30)
+                temp_peaks = peaks.copy()
+                # print(len(peaks))
+                # if len(peaks) >5:
+                # print(peaks)
+                for i in range(len(temp_peaks)):
+                    if i > 0:
+                        step = peaks[i] - prev_peaks
+                        if step < 20:
+                            # 使用布尔索引选择不等于要移除值的元素，重新分配给 temp_d
+                            temp_d = temp_d[temp_d != prev_peaks]
+                            # 移除之后需要更新 temp_peaks 和 prev_peaks
+                            temp_peaks = np.where(temp_peaks != prev_peaks, temp_peaks, -1)
+                            temp_peaks = temp_peaks[temp_peaks != -1]
+                            # prev_peaks = peaks[i]
+                        prev_peaks = peaks[i]
+                    else:
+                        prev_peaks = peaks[i]
+
+
+                for i in temp_peaks:
+                    temp = temp_d[i] * self.length_ratio
+                    d.append(temp)
+                # print(d)
+                if len(d)>0:
+                    title = 'Stride Length'
+                    mean = np.mean(d)
+                    d.append(mean)
+                    self.show_histogram(d,self.ui.x_figure_view,title)
+
+
+
+
+
+    def show_histogram(self, d, graphicview, title):
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
+        
+        plt = pg.PlotWidget()
+        plt.resize(graphicview.width(), graphicview.height())
+
+        # Create y values
+        y = [(i+1) for i in range(len(d))]
+
+        barItem = pg.BarGraphItem(x0=0, y=y, height=0.6, width=d, brush='r')
+        plt.addItem(barItem)
+        plt.setLabel('left', 'Stride')
+
+        # Set only the desired ticks on the y-axis
+        ticks = [(i+1, str(i+1)) for i in range(len(d)-1)]
+        ticks.append((len(d), 'avg'))
+        plt.getPlotItem().getAxis('left').setTicks([ticks])
+
+        plt.setLabel('bottom', 'm')
+        plt.setWindowTitle(title)
+        plt.setTitle(title)
+
         scene = QGraphicsScene()
-        pen = QPen(Qt.blue)
-        scene.addText(title)
-
-        xaxis = data['x']
-        yaxis = data['y']
-
-        # 設置圖表範圍
-        x_min, x_max = min(xaxis), max(xaxis)
-        y_min, y_max = min(yaxis), max(yaxis)
-
-        # 計算轉換比例
-        width = graphicview.width() 
-        height = graphicview.height()
-        x_scale = width / (x_max - x_min)
-        y_scale = height / (y_max - y_min)
-
-        prev_point = None
-        for x, y in zip(xaxis, yaxis):
-            x_coord = (x - x_min) * x_scale
-            y_coord = height - (y - y_min) * y_scale  # flip y-axis
-            if prev_point:
-                scene.addLine(prev_point.x(), prev_point.y(), x_coord, y_coord, pen)
-            prev_point = QPointF(x_coord, y_coord)
+        scene.addWidget(plt)
 
         graphicview.setScene(scene)
+        graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+
+
+
+
+    # def show_histogram(self, d,graphicview, title):
+    #     pg.setConfigOption('background', 'w')
+    #     pg.setConfigOption('foreground', 'k')
+    #     plt = pg.PlotWidget()
+    #     plt.resize(graphicview.width(),graphicview.height())
+    #     x = [0,max(d)]
+    #     Ticks = [str(i+1) for i in range(len(d))]
+    #     y = [(i+1) for i in range(len(d))]
+    #     plt = pg.PlotWidget()
+        
+    #     barItem = pg.BarGraphItem(x = x, height = y, width = 0.3, brush=(107,200,224))
+    #     plt.addItem(barItem)
+        
+    #     plt.getAxis('left').setTicks([[(i, Ticks[i-1]) for i in x]])
+    #     font = QFont()
+    #     font.setPixelSize(20)
+    #     plt.getAxis("left").setStyle(tickFont = font)
+    #     plt.getAxis("bottom").setStyle(tickFont = font)
+    #     plt.getAxis("left").setTextPen(color='g')
+    #     plt.getAxis("left").setPen(color='y')
+    #     plt.setWindowTitle(title)
+    #     scene = QGraphicsScene()
+    #     scene.addWidget(plt)
+    #     graphicview.setScene(scene)
+    #     graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
+
+
+    def show_figure(self, t,v, graphicview, title):
+        pg.setConfigOption('background', 'w')
+        pg.setConfigOption('foreground', 'k')
+        plt = pg.PlotWidget()
+        plt.resize(graphicview.width(),graphicview.height())
+        plt.showGrid(x=True, y=True)
+        plt.addLegend(offset=(150, 5), labelTextSize="16pt")
+        plt.setLabel('left', 'Velocity (m/s)')
+        plt.setLabel('bottom', 'Frame')
+        # print(t)
+        # exit()
+        plt.setXRange(min(t), max(t))
+        plt.setYRange(0, 10)
+        plt.setWindowTitle(title)      
+        # plt.setTitle(title)       
+        plt.plot(t, v, pen='r', name=title)
+        # Clear previous scene content
+        scene = QGraphicsScene()
+        # Add the PlotWidget directly to the scene
+        scene.addWidget(plt)
+
+        # Set the scene in the QGraphicsView
+        graphicview.setScene(scene)
+        graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
