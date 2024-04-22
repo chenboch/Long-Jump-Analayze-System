@@ -289,6 +289,16 @@
               </widget>
              </item>
              <item>
+              <widget class="QLabel" name="label_2">
+               <property name="text">
+                <string>Length(m): </string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="length_selector"/>
+             </item>
+             <item>
               <widget class="QPushButton" name="set_length_btn">
                <property name="text">
                 <string>設定長度</string>
