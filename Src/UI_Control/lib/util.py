@@ -14,9 +14,6 @@ class DataType(Enum):
            "filter": "Video files (*.csv)"}
     FOLDER = {"name": "folder", "tips": "", "filter": ""}
 
-
-
-
 def video_to_frame(input_video_path):
     video_images = []
     vidcap = cv2.VideoCapture(input_video_path)

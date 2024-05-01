@@ -309,7 +309,7 @@
                 <item>
                  <widget class="QLabel" name="length_label">
                   <property name="text">
-                   <string>長度 (m): </string>
+                   <string>長度 (cm): </string>
                   </property>
                  </widget>
                 </item>
@@ -317,6 +317,12 @@
                  <widget class="QSpinBox" name="length_input">
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                  <property name="maximum">
+                   <number>999</number>
+                  </property>
+                  <property name="singleStep">
+                   <number>1</number>
                   </property>
                   <property name="value">
                    <number>2</number>

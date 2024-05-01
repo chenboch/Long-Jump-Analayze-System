@@ -17,8 +17,9 @@ import numpy as np
 from lib.cv_thread import VideoToImagesThread
 from lib.util import DataType
 from lib.timer import Timer
+from lib.vis_image import draw_set_line, draw_distance_infromation, draw_bbox
 from lib.vis_pose import draw_points_and_skeleton, joints_dict
-from Graph.speed_graph import Speedgraph
+# from Graph.speed_graph import Speedgraph
 from Widget.store import Store_Widget
 from topdown_demo_with_mmdet import process_one_image
 from mmengine.logging import print_log
@@ -103,7 +104,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.fps = 30
 
         self.stride_num = 6
-        self.speed_range = [0,12]
+        self.speed_range = [0,14]
         self.frame_ratio = 1/120
         self.video_images=[]
         self.video_path = ""
@@ -134,21 +135,13 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.stride_graph =  pg.PlotWidget()
         self.speed_graph =  pg.PlotWidget()
         self.kpts_dict = joints_dict()['coco']['keypoints']
-        try:
-            self.colors = np.round(
-                np.array(plt.get_cmap('gist_rainbow').colors) * 255
-            ).astype(np.uint8)[:, ::-1].tolist()
-        except AttributeError:  # if palette has not pre-defined colors
-            self.colors = np.round(
-                np.array(plt.get_cmap('gist_rainbow')(np.linspace(0, 1, 10))) * 255
-            ).astype(np.uint8)[:, -2::-1].tolist()
             
     def add_parser(self):
         self.parser = ArgumentParser()
         self.parser.add_argument('--det-config', default='../mmpose_main/demo/mmdetection_cfg/rtmdet_m_640-8xb32_coco-person.py', help='Config file for detection')
         self.parser.add_argument('--det-checkpoint', default='../../Db/pretrain/vit_pose_pth/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth', help='Checkpoint file for detection')
         self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_ViTPose-base_8xb64-210e_coco-256x192.py', help='Config file for pose')
-        self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/vit_pose_pth/210/work_dirs/td-hm_ViTPose-base_8xb64-210e_coco-256x192/epoch_210.pth', help='Checkpoint file for pose')
+        self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/vit_pose_pth/210/work_dirs/td-hm_ViTPose-base_8xb64-210e_coco-256x192/best_coco_AP_epoch_210.pth', help='Checkpoint file for pose')
         self.parser.add_argument(
         '--det-cat-id',
         type=int,
@@ -329,7 +322,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.speed_graph.setYRange(self.speed_range[0], self.speed_range[1])
         self.speed_graph.setWindowTitle(title)         
         self.speed_graph.setTitle(title)
-        y_ticks = [(i, str(i)) for i in np.arange(0, 14, 2)]
+        y_ticks = [(i, str(i)) for i in np.arange(0, 16, 2)]
         self.speed_graph.getPlotItem().getAxis('left').setTicks([y_ticks])
         self.show_graph(self.speed_graph, self.speed_scene, self.ui.speed_view)
 
@@ -467,7 +460,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             person_bboxes = pred_instances['bboxes']
             self.merge_person_datas(frame_num, person_ids, person_bboxes, person_kpts)
             self.processed_frames.add(frame_num)
-        
+            
         if self.ui.frame_slider.value() == (self.total_images-1):
             self.ui.play_btn.click()
 
@@ -475,6 +468,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.import_id_to_selector(frame_num)
         else:
             self.check_id_exist(frame_num)
+        self.smooth_kpt()
         self.obtain_velocity()
         self.obtain_distance()
         self.import_data_to_table(frame_num)  
@@ -485,53 +479,17 @@ class Pose_2d_Tab_Control(QMainWindow):
         curr_person_df, frame_num= self.obtain_curr_data()
         image=self.video_images[frame_num].copy()
         
-        if len(self.line_pos) > 3:
-            # for i in range(len(self.line_pos)):
-            x1, y1, x2, y2 = int(self.line_pos[0]), int(self.line_pos[1]), int(self.line_pos[2]), int(self.line_pos[3])
-            image = cv2.line(image, (int(x1), int(y1-5)), (int(x1), int(y1+5)), (0,0,255) , 2)
-            image = cv2.line(image, (int(x1-5), int(y1)), (int(x1+5), int(y1)), (0,0,255) , 2)
-            image = cv2.line(image, (int(x2), int(y2-5)), (int(x2), int(y2+5)), (0,0,255) , 2)
-            image = cv2.line(image, (int(x2-5), int(y2)), (int(x2+5), int(y2)), (0,0,255) , 2)
-            image = cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), (0,0,255) , 2)
-
-        if len(self.line_pos) > 1:
-            x1, y1 = int(self.line_pos[0]), int(self.line_pos[1])
-            image = cv2.line(image, (int(x1), int(y1-5)), (int(x1), int(y1+5)), (0,0,255) , 2)
-            image = cv2.line(image, (int(x1-5), int(y1)), (int(x1+5), int(y1)), (0,0,255) , 2)
-
-        l_x_ankle_datas = []
-        l_y_ankle_datas = []
-        r_x_ankle_datas = []
-        r_y_ankle_datas = []
-        r_peaks = []
-        l_peaks = []
+        image =  draw_set_line(image, self.line_pos)
 
         if len(self.distance_dict) != 0:
-            r_x_ankle_datas = self.distance_dict['right ankle x']
-            r_y_ankle_datas = self.distance_dict['right ankle y'] 
-            l_x_ankle_datas = self.distance_dict['left ankle x']
-            l_y_ankle_datas = self.distance_dict['left ankle y']
-            r_peaks = self.distance_dict['r_peaks']
-            l_peaks = self.distance_dict['l_peaks']
-        
-            for i in r_peaks:
-                r_x = r_x_ankle_datas[i]
-                r_y = r_y_ankle_datas[i]
-                image = cv2.circle(image, (int(r_x), int(r_y)), 5, (0, 255, 0), -1)
-
-            for i in l_peaks:
-                l_x = l_x_ankle_datas[i]
-                l_y = l_y_ankle_datas[i]
-                image = cv2.circle(image, (int(l_x), int(l_y)), 5, (0, 0, 255), -1)
-               
-
+            image = draw_distance_infromation(image,self.distance_dict)
         # if self.ui.show_skeleton_checkBox.isChecked():
         if not curr_person_df.empty :
             image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['coco']['skeleton_links'], 
                                             points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
                                             points_palette_samples=10, confidence_threshold=0.3)
             if self.ui.show_bbox_checkbox.isChecked():
-                self.draw_bbox(curr_person_df, image)
+                image = draw_bbox(curr_person_df, image)
             
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
@@ -577,8 +535,8 @@ class Pose_2d_Tab_Control(QMainWindow):
 
             person_ids = sorted(filter_person_df['person_id'].unique())
             for person_id in person_ids:
-                # if person_id != 1 :
-                self.ui.ID_selector.addItem(str(person_id))
+                if person_id == 2:
+                    self.ui.ID_selector.addItem(str(person_id))
 
         except KeyError:
             # print("未找到'frame_number'或'person_id'列")
@@ -646,16 +604,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         for i in range(4):
             header.setDefaultAlignment(Qt.AlignLeft)
 
-    def draw_bbox(self, person_data, img):
-        person_ids = person_data['person_id']
-        person_bbox = person_data['bbox']
-        for id, bbox in zip(person_ids, person_bbox):
-            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-            color = tuple(self.colors[id % len(self.colors)])
-            img = cv2.rectangle(img, (x1, y1), (x2, y2), color, 4)
-            img = cv2.putText(img, str(id), (x1, y1-10), cv2.FONT_HERSHEY_COMPLEX, 1.5, color, 2)
-        return img
-
     def on_cell_clicked(self, row, column):
         self.correct_kpt_idx = row
         self.label_kpt = True
@@ -678,7 +626,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
     def set_length(self):
         self.is_set_length = True
-        self.real_length = self.ui.length_input.value()
+        self.real_length = self.ui.length_input.value()/100
 
     def mousePressEvent(self, event):
         if self.label_kpt:
@@ -689,7 +637,6 @@ class Pose_2d_Tab_Control(QMainWindow):
             if event.button() == Qt.LeftButton:
                 self.send_to_table(kptx, kpty,kpt_label)
             elif event.button() == Qt.RightButton:
-                print("t")
                 kptx, kpty = 0, 0
                 self.send_to_table(kptx, kpty, 0)
             self.label_kpt = False
@@ -719,12 +666,10 @@ class Pose_2d_Tab_Control(QMainWindow):
                 pre_frame_num = 0
             else:
                 pre_frame_num = curr_frame_num - 1
-
             pre_person_data = self.person_df.loc[(self.person_df['frame_number'] == pre_frame_num) &
                                                 (self.person_df['person_id'] == person_id)]
             curr_person_data = self.person_df.loc[(self.person_df['frame_number'] == curr_frame_num) &
                                                 (self.person_df['person_id'] == person_id)]
-
             if not curr_person_data.empty:
                 pre_kpts = pre_person_data.iloc[0]['keypoints']
                 curr_kpts = curr_person_data.iloc[0]['keypoints']
@@ -743,6 +688,38 @@ class Pose_2d_Tab_Control(QMainWindow):
             else:
                 print("Previous frame data not found for smooth.")
         print("Smooth process is finished.")
+    
+    def smooth_kpt(self):
+        if self.ui.ID_selector.count() > 0 :
+            person_id = int(self.ui.ID_selector.currentText())
+            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+            if len(person_kpt) > 0 and self.start_frame_num ==0 :
+                self.start_frame_num = self.ui.frame_slider.value()
+            if self.start_frame_num != 0:
+                curr_frame = self.ui.frame_slider.value()
+                if curr_frame == 0:
+                    pre_frame_num = 0
+                else:
+                    pre_frame_num = curr_frame - 1
+
+            pre_person_data = self.person_df.loc[(self.person_df['frame_number'] == pre_frame_num) &
+                                                (self.person_df['person_id'] == person_id)]
+            curr_person_data = self.person_df.loc[(self.person_df['frame_number'] == curr_frame) &
+                                                (self.person_df['person_id'] == person_id)]
+            if not curr_person_data.empty and not pre_person_data.empty:
+                pre_kpts = pre_person_data.iloc[0]['keypoints']
+                curr_kpts = curr_person_data.iloc[0]['keypoints']
+                smoothed_kpts = []
+                for pre_kpt, curr_kpt in zip(pre_kpts, curr_kpts): 
+                    pre_kptx, pre_kpty = pre_kpt[0], pre_kpt[1]
+                    curr_kptx , curr_kpty, curr_conf, curr_label = curr_kpt[0], curr_kpt[1], curr_kpt[2], curr_kpt[3]
+                    if pre_kptx != 0 and pre_kpty != 0 and curr_kptx != 0 and curr_kpty !=0:
+                 
+                        curr_kptx = self.smooth_tool(curr_kptx, pre_kptx)
+                        curr_kpty = self.smooth_tool(curr_kpty, pre_kpty)
+                    smoothed_kpts.append([curr_kptx, curr_kpty, curr_conf, curr_label])  # 设置可信度为默认值
+        #         # 更新 DataFrame 中的数据
+                self.person_df.at[curr_person_data.index[0], 'keypoints'] = smoothed_kpts
   
     def ID_locker(self):
         if not self.ID_lock:
@@ -817,35 +794,23 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.person_df = pd.read_json(json_path)
             process_frame_nums = sorted(self.person_df['frame_number'].unique())
             self.processed_frames = set(process_frame_nums) 
-            self.import_id_to_selector(0)
-            person_id = int(self.ui.ID_selector.currentText())
-
-            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-            x_kpt_datas = []
-            y_kpt_datas = []
-            for kpt_datas in person_kpt:
-                x_kpt_datas.append(kpt_datas[self.select_kpt_index][0])
-                y_kpt_datas.append(kpt_datas[self.select_kpt_index][1])
-            x_figure_dict = {'x':process_frame_nums, 'y': x_kpt_datas}
-            y_figure_dict = {'x':process_frame_nums, 'y': y_kpt_datas}
-
-            self.show_figure(x_figure_dict, self.ui.stride_view, 'X')
-            self.show_figure(y_figure_dict, self.ui.speed_view, 'Y')
-            
-            self.update_frame()
-
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
     def set_frame_ratio(self):
         self.frame_ratio = 1 / self.ui.fps_input.value()
         print(self.frame_ratio)
+        font = QFont()
+        font.setPixelSize(15)
+        self.speed_graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
+        self.speed_graph.getAxis("bottom").setStyle(tickFont=font)
 
     def obtain_velocity(self):
+        time_step = 30
         if self.ui.ID_selector.count() > 0 :
             person_id = int(self.ui.ID_selector.currentText())
             person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-            if len(person_kpt) > 0 and self.start_frame_num ==0 :
+            if len(person_kpt) > 0 and self.start_frame_num == 0 :
                 self.start_frame_num = self.ui.frame_slider.value()
             if self.start_frame_num != 0: 
                 person_kpt = person_kpt.to_numpy()
@@ -857,31 +822,35 @@ class Pose_2d_Tab_Control(QMainWindow):
                 t = []
                 l = self.ui.frame_slider.value() - self.start_frame_num
                 for i in range(l):
-                    l_x_kpt_datas.append(person_kpt[i][5][0])
-                    l_y_kpt_datas.append(person_kpt[i][5][1])
+                    if len(person_kpt) > l or len(person_kpt) == l:
+                        l_x_kpt_datas.append(person_kpt[i][5][0])
+                        l_y_kpt_datas.append(person_kpt[i][5][1])
                 for i in range(len(l_x_kpt_datas)):
-                    mod = i % 30
-                    if mod == 0 :
+                    if i % time_step == 0 :
                         pos_x.append([l_x_kpt_datas[i]])
                         pos_y.append([l_y_kpt_datas[i]])
+                # print(pos_x)
                 if len(pos_x) > 1 :
                     for i in range(len(pos_x)):
                         if i > 0:
                             pos_f = np.array([pos_x[i-1], pos_y[i-1]])
                             pos_s = np.array([pos_x[i], pos_y[i]])
-                            if pos_f[0] > self.end_line_pos:
-                                length = np.linalg.norm(pos_f - pos_s)
-                                temp_v = (length * self.length_ratio) / (30 * self.frame_ratio)
-                                v.append(temp_v) 
+                            # if pos_f[0] < self.end_line_pos: 
+                            length = np.linalg.norm(pos_f - pos_s)
+                            temp_v = (length * self.length_ratio) / (time_step * self.frame_ratio)
+                            v.append(temp_v) 
                         else:
                             v.append(0)
                 for i in range(len(v)):
-                    temp_t = self.start_frame_num + i * 30
+                    temp_t = self.start_frame_num + i * time_step
                     t.append(temp_t)
                 t = t[1:]
                 v = v[1:]
+                # print(t)
+                # print(v)
                 if len(v) > 0:
                     self.update_speed_graph(t, v)
+                    # print(v)
 
     def obtain_distance(self):
         if self.ui.ID_selector.count() > 0:
@@ -896,73 +865,47 @@ class Pose_2d_Tab_Control(QMainWindow):
                 r_y_ankle_datas = []
                 t_pos = []
                 d = []
-
                 l = self.ui.frame_slider.value() - self.start_frame_num
 
                 for i in range(l):
-                    if person_kpt[i][15][0] > (self.end_line_pos - 90) and person_kpt[i][16][0] > (self.end_line_pos - 90):
+                    if (len(person_kpt) > l or len(person_kpt) == l):
                         l_x_ankle_datas.append(person_kpt[i][15][0])
                         l_y_ankle_datas.append(person_kpt[i][15][1])
                         r_x_ankle_datas.append(person_kpt[i][16][0])
                         r_y_ankle_datas.append(person_kpt[i][16][1])
-                    # else:
-                    #     print(self.ui.frame_slider.value())
-
                 # Find peaks in the left ankle y-coordinates
-                l_peaks, _ = find_peaks(np.array(l_y_ankle_datas), prominence=10)
-                l_temp_peaks = l_peaks.copy()
-                # l_pos = []
-
-                # Filter adjacent peaks for left ankle
-                if len(l_peaks) > 0:
-                    prev_peaks = l_peaks[0]  # Initialize prev_peaks
-                    for i in range(1, len(l_peaks)):
-                        step = l_peaks[i] - prev_peaks
-                        if step < 15:
-                            mask = np.ones(len(l_temp_peaks), dtype=bool)
-                            mask[l_temp_peaks == prev_peaks] = False
-                            l_temp_peaks = l_temp_peaks[mask]
-                        prev_peaks = l_peaks[i]
-
+                l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance= 10 , prominence=10,width=15)
+                l_peaks = l_peaks.copy()
                 # Find peaks in the right ankle y-coordinates
-                r_peaks, _ = find_peaks(np.array(r_y_ankle_datas), prominence=10)
-                r_temp_peaks = r_peaks.copy()
+                r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=10, prominence=10,width=10)
+                r_peaks = r_peaks.copy()
 
-                # Filter adjacent peaks for right ankle
-                if len(r_peaks) > 0:
-                    prev_peaks = r_peaks[0]  # Initialize prev_peaks
-                    for i in range(1, len(r_peaks)):
-                        step = r_peaks[i] - prev_peaks
-                        if step < 15:
-                            mask = np.ones(len(r_temp_peaks), dtype=bool)
-                            mask[r_temp_peaks == prev_peaks] = False
-                            r_temp_peaks = r_temp_peaks[mask]
-                        prev_peaks = r_peaks[i]
+                if len(l_peaks)>0 and len(r_peaks)>0 :
+                    if l_peaks[0] < r_peaks[0]:
+                        l_peaks = l_peaks[1:]
+                    else:
+                        r_peaks = r_peaks[1:]
 
-                if len(l_temp_peaks)>0 and len(r_temp_peaks)>0 :
-                    if l_temp_peaks[0] < r_temp_peaks[0]:
-                        l_temp_peaks = l_temp_peaks[1:]
+
+                if len(l_peaks) >0 and len(r_peaks) > 0:
+                    if l_peaks[0] < r_peaks[0]:
+                        for i in range(len(l_peaks)):
+
+                            t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
+                            if i < len(r_peaks):
+                                t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[l_peaks[i]]])
                     else:
-                        r_temp_peaks = r_temp_peaks[1:]
-                
-                if len(l_temp_peaks) >0 and len(r_temp_peaks) > 0:
-                    if l_temp_peaks[0] < r_temp_peaks[0]:
-                        for i in range(len(l_temp_peaks)):
-                            t_pos.append([l_x_ankle_datas[l_temp_peaks[i]], l_y_ankle_datas[l_temp_peaks[i]]])
-                            if i < len(r_temp_peaks):
-                                t_pos.append([r_x_ankle_datas[r_temp_peaks[i]], r_y_ankle_datas[l_temp_peaks[i]]])
-                    else:
-                        for i in range(len(r_temp_peaks)):
-                            t_pos.append([r_x_ankle_datas[r_temp_peaks[i]], r_y_ankle_datas[r_temp_peaks[i]]])
-                            if i < len(l_temp_peaks):
-                                t_pos.append([l_x_ankle_datas[l_temp_peaks[i]], l_y_ankle_datas[l_temp_peaks[i]]])
+                        for i in range(len(r_peaks)):
+                            t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[r_peaks[i]]])
+                            if i < len(l_peaks):
+                                t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
                 
                 prev_pos = np.array([]) 
                 for i in range(len(t_pos)):
                     if i > 0:
                         curr_pos = np.array(t_pos[i])
                         t_d = np.linalg.norm(prev_pos - curr_pos)
-                        d.append(t_d*self.length_ratio)
+                        d.append(np.round(t_d*self.length_ratio,2))
                         prev_pos = np.array(curr_pos)
                     else:
                         prev_pos = np.array(t_pos[0])
@@ -973,11 +916,14 @@ class Pose_2d_Tab_Control(QMainWindow):
                                     'right ankle y': r_y_ankle_datas,
                                     'left ankle x': l_x_ankle_datas,
                                     'left ankle y': l_y_ankle_datas,
-                                    'l_peaks': l_temp_peaks,
-                                    'r_peaks': r_temp_peaks}
+                                    'l_peaks': l_peaks,
+                                    'r_peaks': r_peaks,
+                                    't_pos': t_pos,
+                                    'd': d}
                
     def update_stride_graph(self, d):
         # 計算平均值
+        self.stride_graph.clear()
         mean = np.round(np.mean(d), 2)
         title = f'Stride Length (Average: {np.round(mean,2)}m)'  
         self.stride_graph.setTitle(title)   
@@ -986,16 +932,19 @@ class Pose_2d_Tab_Control(QMainWindow):
         font.setPixelSize(15)
         y = [(i + 1) for i in range(len(d))]
         # 添加條形圖
-        barItem = pg.BarGraphItem(x=0, y=y, height=0.3, width=d, brush='r')
+        md = [2*x for x in d]
+        barItem = pg.BarGraphItem(x=0, y=y, height=0.3, width=md, brush='r')
+        # print(d)
         self.stride_graph.addItem(barItem)
         # 添加每個值方的標籤
         for i, val in enumerate(d):
-            formatted_val = "{:.2f}m".format(val)
+            formatted_val = "{:.2f} m".format(np.round(val,2))
             label = pg.TextItem(text=formatted_val, anchor=(0.5, 0.5), color=(0, 0, 0))
-            label.setPos(2, i + 1)
+            label.setPos(3, i + 1)
             self.stride_graph.addItem(label)
             
     def update_speed_graph(self, t,v):
+        self.speed_graph.clear()
         mean = np.round(np.mean(v[:max(t)]), 2)
         title = f"Speed (Average: {mean}m/s)"
         font = QFont()
@@ -1008,11 +957,11 @@ class Pose_2d_Tab_Control(QMainWindow):
         x_ticks = [(i, str(i)) for i in np.arange(min(t), min(t)+200, 30)]
         self.speed_graph.getPlotItem().getAxis('bottom').setTicks([x_ticks])
         for i, val in zip(t, v):
-            formatted_val = "{:.2f}m/s".format(val)
-            label = pg.TextItem(text=formatted_val, anchor=(0.5, 0.5), color=(0, 0, 0))
+            formatted_val = str(np.round(val,2))
+            text = f"{formatted_val} m/s"
+            label = pg.TextItem(text = text, anchor=(0.5, 0.5), color=(0, 0, 0))
             label.setPos(i, val+1)
             self.speed_graph.addItem(label)
-
 
 
 if __name__ == "__main__":
