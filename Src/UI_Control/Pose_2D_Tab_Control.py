@@ -134,7 +134,10 @@ class Pose_2d_Tab_Control(QMainWindow):
         pg.setConfigOption('foreground', 'k')
         self.stride_graph =  pg.PlotWidget()
         self.speed_graph =  pg.PlotWidget()
+        # coco
         self.kpts_dict = joints_dict()['coco']['keypoints']
+        # haple
+        # self.kpts_dict = joints_dict()['haple']['keypoints']
             
     def add_parser(self):
         self.parser = ArgumentParser()
@@ -142,6 +145,8 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.parser.add_argument('--det-checkpoint', default='../../Db/pretrain/vit_pose_pth/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth', help='Checkpoint file for detection')
         self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_ViTPose-base_8xb64-210e_coco-256x192.py', help='Config file for pose')
         self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/vit_pose_pth/210/work_dirs/td-hm_ViTPose-base_8xb64-210e_coco-256x192/best_coco_AP_epoch_210.pth', help='Checkpoint file for pose')
+        # self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/haple/ViTPose_base_simple_halpe_256x192.py', help='Config file for pose')
+        # self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/best_coco_AP_epoch_f9_8.pth', help='Checkpoint file for pose')
         self.parser.add_argument(
         '--det-cat-id',
         type=int,
@@ -379,6 +384,10 @@ class Pose_2d_Tab_Control(QMainWindow):
     def merge_person_datas(self, frame_num, person_ids, person_bboxes, person_kpts):
         for pid, bbox, kpts in zip(person_ids, person_bboxes, person_kpts):
             new_kpts = np.zeros((len(self.kpts_dict),kpts.shape[1]))
+            #haple
+            # new_kpts[:26] = kpts
+            # new_kpts[26:, 2] = 0.9
+            #coco
             new_kpts[:17] = kpts
             new_kpts[17:, 2] = 0.9
             self.person_data.append({
@@ -485,6 +494,11 @@ class Pose_2d_Tab_Control(QMainWindow):
             image = draw_distance_infromation(image,self.distance_dict)
         # if self.ui.show_skeleton_checkBox.isChecked():
         if not curr_person_df.empty :
+            #haple
+            # image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
+            #                                 points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
+            #                                 points_palette_samples=10, confidence_threshold=0.3)
+            #coco
             image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['coco']['skeleton_links'], 
                                             points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
                                             points_palette_samples=10, confidence_threshold=0.3)
@@ -756,6 +770,9 @@ class Pose_2d_Tab_Control(QMainWindow):
                 curr_person_data = curr_person_data.iloc[0]['keypoints']
                 self.ui.frame_slider.setValue(start)
                 # 计算每个关键点的线性插值的差值
+                #haple
+                # diff = np.subtract(last_person_data[26:], curr_person_data[26:])
+                #coco
                 diff = np.subtract(last_person_data[17:], curr_person_data[17:])
                 diff[:, 2] = 0.9
                 # 对后续帧应用线性插值
@@ -763,6 +780,9 @@ class Pose_2d_Tab_Control(QMainWindow):
                 for frame_num in range(start, end):
                     for index, row in self.person_df[self.person_df['frame_number'] == frame_num].iterrows():
                         relative_distance = i / (end - start)  # 计算相对距离
+                        #haple
+                        # self.person_df.at[index, 'keypoints'][26:] = np.add(curr_person_data[26:], relative_distance * diff)
+                        #coco
                         self.person_df.at[index, 'keypoints'][17:] = np.add(curr_person_data[17:], relative_distance * diff)
                     i += 1
             else:
@@ -823,6 +843,8 @@ class Pose_2d_Tab_Control(QMainWindow):
                 l = self.ui.frame_slider.value() - self.start_frame_num
                 for i in range(l):
                     if len(person_kpt) > l or len(person_kpt) == l:
+                        # 18: "頸部"
+                        # 5: "左肩"
                         l_x_kpt_datas.append(person_kpt[i][5][0])
                         l_y_kpt_datas.append(person_kpt[i][5][1])
                 for i in range(len(l_x_kpt_datas)):
@@ -869,6 +891,10 @@ class Pose_2d_Tab_Control(QMainWindow):
 
                 for i in range(l):
                     if (len(person_kpt) > l or len(person_kpt) == l):
+                        # 20: "左大腳趾"
+                        # 21: "右大腳趾"
+                        # 15: "左腳跟"
+                        # 16: "右腳跟"
                         l_x_ankle_datas.append(person_kpt[i][15][0])
                         l_y_ankle_datas.append(person_kpt[i][15][1])
                         r_x_ankle_datas.append(person_kpt[i][16][0])
@@ -947,7 +973,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.speed_graph.clear()
         mean = np.round(np.mean(v[:max(t)]), 2)
         title = f"Speed (Average: {mean}m/s)"
-        font = QFont()
+        font = QFont() 
         font.setPixelSize(15)
         self.speed_graph.setXRange(min(t), min(t)+200)
         self.speed_graph.setWindowTitle(title)         
