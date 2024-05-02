@@ -155,8 +155,8 @@ def draw_skeleton(image, points, skeleton, color_palette='Set2', palette_samples
         colors = np.round(
             np.array(plt.get_cmap(color_palette)(np.linspace(0, 1, palette_samples))) * 255
         ).astype(np.uint8)[:, -2::-1].tolist()
-    right_skeleton = joints_dict()['coco']['right_points_indices']
-    left_skeleton = joints_dict()['coco']['left_points_indices']
+    right_skeleton = joints_dict()['haple']['right_points_indices']
+    left_skeleton = joints_dict()['haple']['left_points_indices']
  
     for i, joint in enumerate(skeleton):
         pt1, pt2 = points[joint]

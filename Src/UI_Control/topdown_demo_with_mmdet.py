@@ -11,7 +11,7 @@ import mmcv
 import mmengine
 import numpy as np
 from mmengine.logging import print_log
-
+from mmcv.transforms import Compose
 from mmpose.apis import inference_topdown
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.evaluation.functional import nms
@@ -29,20 +29,40 @@ except (ImportError, ModuleNotFoundError):
 def process_one_image(args,
                       img,
                       detector,
+                      test_pipeline,
                       pose_estimator,
                       tracker,
                       visualizer=None,
                       show_interval=0):
-    """Visualize predicted keypoints (and heatmaps) of one image."""
+    # detector = init_detector(
+    #     args.det_config, args.det_checkpoint, device=args.device)
+    # build test pipeline
+    # detector.cfg.test_dataloader.dataset.pipeline[
+    #     0].type = 'mmdet.LoadImageFromNDArray'
+    # test_pipeline = Compose(detector.cfg.test_dataloader.dataset.pipeline)
 
-    # predict bbox
-    det_result = inference_detector(detector, img)
-    pred_instance = det_result.pred_instances.cpu().numpy()
+
+    result = inference_detector(detector, img,test_pipeline=test_pipeline)
+
+    # img = mmcv.imconvert(img, 'bgr', 'rgb')
+
+
+
+    # Get candidate predict info with score threshold
+    det_result = result.pred_instances[
+        result.pred_instances.scores > args.score_thr].cpu().numpy()
+    # print(det_result)
+    # exit
+    # # predict bbox
+    # det_result = inference_detector(detector, img)
+
+    pred_instance = det_result
     bboxes = np.concatenate(
         (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
-    bboxes = bboxes[np.logical_and(pred_instance.labels == args.det_cat_id,
-                                   pred_instance.scores > args.bbox_thr)]
+    bboxes = bboxes[pred_instance.labels == args.det_cat_id]
+    
     bboxes = bboxes[nms(bboxes, args.nms_thr), :4]
+    # print(bboxes)
     new_bboxes = np.zeros((bboxes.shape[0],6))
     new_bboxes[:, :4] = bboxes
     new_bboxes[:, -2] = 0.9

@@ -141,10 +141,10 @@ def main():
                 2.0, [225, 255, 255],
                 thickness=3)
 
-        if args.show:
-            mmcv.imshow(bgr, 'result', 0)
-        else:
-            mmcv.imwrite(bgr, out_file)
+        # if args.show:
+        #     mmcv.imshow(bgr, 'result', 0)
+        # else:
+        #     mmcv.imwrite(bgr, out_file)
         progress_bar.update()
 
 

@@ -22,12 +22,16 @@ from lib.vis_pose import draw_points_and_skeleton, joints_dict
 # from Graph.speed_graph import Speedgraph
 from Widget.store import Store_Widget
 from topdown_demo_with_mmdet import process_one_image
+from image_demo import detect_image
+from mmcv.transforms import Compose
 from mmengine.logging import print_log
 import sys
-sys.path.append("c:\\users\\chenbo\\desktop\\skeleton2d\\src\\tracker")
+sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\tracker")
+sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
 from pathlib import Path
 from tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
+# from detect import YOLOV7Model
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter
@@ -51,9 +55,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.setupUi(self)
         self.init_var()
         self.bind_ui()
-
         self.add_parser()
-        self.init_yolo()
         self.set_tracker_parser()
         self.init_model()
 
@@ -85,10 +87,15 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.set_fps_btn.clicked.connect(self.set_frame_ratio)
 
     def init_model(self):
+        # self.detector = init_detector(
+        # self.args.det_config, self.args.det_checkpoint)
         self.detector = init_detector(
-        self.args.det_config, self.args.det_checkpoint)
-        self.detector.cfg = adapt_mmdet_pipeline(self.detector.cfg)
-        # self.yolo = 
+        self.args.det_config, self.args.det_checkpoint, device=self.args.device)
+        self.detector.cfg.test_dataloader.dataset.pipeline[
+        0].type = 'mmdet.LoadImageFromNDArray'
+        self.detector_test_pipeline = Compose(self.detector.cfg.test_dataloader.dataset.pipeline)
+        # self.detector.cfg = adapt_mmdet_pipeline(self.detector.cfg)
+        # self.yolo =  YOLOV7Model(self.yolo_args)
         self.pose_estimator = init_pose_estimator(
         self.args.pose_config,
         self.args.pose_checkpoint,
@@ -136,29 +143,28 @@ class Pose_2d_Tab_Control(QMainWindow):
         pg.setConfigOption('foreground', 'k')
         self.stride_graph =  pg.PlotWidget()
         self.speed_graph =  pg.PlotWidget()
-        # coco
-        self.kpts_dict = joints_dict()['coco']['keypoints']
-        # haple
-        # self.kpts_dict = joints_dict()['haple']['keypoints']
+        self.kpts_dict = joints_dict()['haple']['keypoints']
             
     def add_parser(self):
         self.parser = ArgumentParser()
-        self.parser.add_argument('--det-config', default='../mmpose_main/demo/mmdetection_cfg/rtmdet_m_640-8xb32_coco-person.py', help='Config file for detection')
-        self.parser.add_argument('--det-checkpoint', default='../../Db/pretrain/vit_pose_pth/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth', help='Checkpoint file for detection')
-        self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_ViTPose-base_8xb64-210e_coco-256x192.py', help='Config file for pose')
-        self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/vit_pose_pth/210/work_dirs/td-hm_ViTPose-base_8xb64-210e_coco-256x192/best_coco_AP_epoch_210.pth', help='Checkpoint file for pose')
-        # self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/haple/ViTPose_base_simple_halpe_256x192.py', help='Config file for pose')
-        # self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/best_coco_AP_epoch_f9_8.pth', help='Checkpoint file for pose')
+        self.parser.add_argument('--det-config', default='../mmyolo_main/yolov7_x_syncbn_fast_8x16b-300e_coco.py', help='Config file for detection')
+        self.parser.add_argument('--det-checkpoint', default='../../Db/pretrain/yolov7_x_syncbn_fast_8x16b-300e_coco_20221124_215331-ef949a68.pth', help='Checkpoint file for detection')
+        self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/haple/ViTPose_base_simple_halpe_256x192.py', help='Config file for pose')
+        self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/best_coco_AP_epoch_f9_8.pth', help='Checkpoint file for pose')
+        self.parser.add_argument(
+        '--device', default='cuda:0', help='Device used for inference')
         self.parser.add_argument(
         '--det-cat-id',
         type=int,
         default=0,
         help='Category id for bounding box detection model')
         self.parser.add_argument(
-            '--bbox-thr',
-            type=float,
-            default=0.3,
-            help='Bounding box score threshold')
+            '--score-thr', type=float, default=0.3, help='Bbox score threshold')
+        # self.parser.add_argument(
+        #     '--bbox-thr',
+        #     type=float,
+        #     default=0.3,
+        #     help='Bounding box score threshold')
         self.parser.add_argument(
             '--nms-thr',
             type=float,
@@ -202,28 +208,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.parser.add_argument(
             '--draw-bbox', action='store_true', help='Draw bboxes of instances')
         self.args = self.parser.parse_args()
-
-    def init_yolo(self):
-        self.yolo_parser = ArgumentParser()
-        self.yolo_parser.add_argument('--weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s)')
-        self.yolo_parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
-        self.yolo_parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-        self.yolo_parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
-        self.yolo_parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-        self.yolo_parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-        self.yolo_parser.add_argument('--view-img', action='store_true', help='display results')
-        self.yolo_parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
-        self.yolo_parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
-        self.yolo_parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
-        self.yolo_parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
-        self.yolo_parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
-        self.yolo_parser.add_argument('--augment', action='store_true', help='augmented inference')
-        self.yolo_parser.add_argument('--update', action='store_true', help='update all models')
-        self.yolo_parser.add_argument('--project', default='runs/detect', help='save results to project/name')
-        self.yolo_parser.add_argument('--name', default='exp', help='save results to project/name')
-        self.yolo_parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-        self.yolo_parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
-        self.yolo_args = self.yolo_parser.parse_args()
 
     def set_tracker_parser(self):
         parser = ArgumentParser()
@@ -408,12 +392,9 @@ class Pose_2d_Tab_Control(QMainWindow):
     def merge_person_datas(self, frame_num, person_ids, person_bboxes, person_kpts):
         for pid, bbox, kpts in zip(person_ids, person_bboxes, person_kpts):
             new_kpts = np.zeros((len(self.kpts_dict),kpts.shape[1]))
-            #haple
-            # new_kpts[:26] = kpts
-            # new_kpts[26:, 2] = 0.9
-            #coco
-            new_kpts[:17] = kpts
-            new_kpts[17:, 2] = 0.9
+            # haple
+            new_kpts[:26] = kpts
+            new_kpts[26:, 2] = 0.9
             self.person_data.append({
                 'frame_number': frame_num,
                 'person_id': pid,
@@ -457,7 +438,7 @@ class Pose_2d_Tab_Control(QMainWindow):
     def start_analyze_frame(self):
         for i in range(0, self.total_images-1):
             image = self.video_images[i]
-            pred_instances, person_ids = process_one_image(self.args, image, self.detector, self.pose_estimator, self.tracker)
+            pred_instances, person_ids = process_one_image(self.args, image, self.detector, self.detector_test_pipeline, self.pose_estimator, self.tracker)
             # the keyscore > 1.0??
             person_kpts = self.merge_keypoint_datas(pred_instances)
             person_bboxes = pred_instances['bboxes']
@@ -478,8 +459,11 @@ class Pose_2d_Tab_Control(QMainWindow):
         image = ori_image.copy()
 
         if frame_num not in self.processed_frames:
-            self.timer.tic()
-            pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.pose_estimator,self.tracker)
+            # self.timer.tic()
+            # det = detect_image(self.yolo_args,self.yolo_model,image)
+            # print(det)
+            # exit()
+            pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.detector_test_pipeline,self.pose_estimator,self.tracker)
             average_time = self.timer.toc()
             fps= int(1/max(average_time,0.00001))
             if fps <10:
@@ -502,8 +486,8 @@ class Pose_2d_Tab_Control(QMainWindow):
         else:
             self.check_id_exist(frame_num)
         self.smooth_kpt()
-        # self.obtain_velocity()
-        # self.obtain_distance()
+        self.obtain_velocity()
+        self.obtain_distance()
         self.import_data_to_table(frame_num)  
         self.update_frame()
         # if len(self.stride_graph) > 0:
@@ -519,11 +503,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         # if self.ui.show_skeleton_checkBox.isChecked():
         if not curr_person_df.empty :
             #haple
-            # image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
-            #                                 points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
-            #                                 points_palette_samples=10, confidence_threshold=0.3)
-            #coco
-            image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['coco']['skeleton_links'], 
+            image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
                                             points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
                                             points_palette_samples=10, confidence_threshold=0.3)
             if self.ui.show_bbox_checkbox.isChecked():
@@ -573,8 +553,8 @@ class Pose_2d_Tab_Control(QMainWindow):
 
             person_ids = sorted(filter_person_df['person_id'].unique())
             for person_id in person_ids:
-                if person_id == 3:
-                    self.ui.ID_selector.addItem(str(person_id))
+                # if person_id == 3:
+                self.ui.ID_selector.addItem(str(person_id))
 
         except KeyError:
             # print("未找到'frame_number'或'person_id'列")
@@ -664,6 +644,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
     def set_length(self):
         self.is_set_length = True
+        self.line_pos = []
         self.real_length = self.ui.length_input.value()/100
 
     def mousePressEvent(self, event):
@@ -795,9 +776,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                 self.ui.frame_slider.setValue(start)
                 # 计算每个关键点的线性插值的差值
                 #haple
-                # diff = np.subtract(last_person_data[26:], curr_person_data[26:])
-                #coco
-                diff = np.subtract(last_person_data[17:], curr_person_data[17:])
+                diff = np.subtract(last_person_data[26:], curr_person_data[26:])
                 diff[:, 2] = 0.9
                 # 对后续帧应用线性插值
                 i = 1
@@ -805,9 +784,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                     for index, row in self.person_df[self.person_df['frame_number'] == frame_num].iterrows():
                         relative_distance = i / (end - start)  # 计算相对距离
                         #haple
-                        # self.person_df.at[index, 'keypoints'][26:] = np.add(curr_person_data[26:], relative_distance * diff)
-                        #coco
-                        self.person_df.at[index, 'keypoints'][17:] = np.add(curr_person_data[17:], relative_distance * diff)
+                        self.person_df.at[index, 'keypoints'][26:] = np.add(curr_person_data[26:], relative_distance * diff)
                     i += 1
             else:
                 print("Previous frame data not found for interpolation.")
@@ -869,8 +846,8 @@ class Pose_2d_Tab_Control(QMainWindow):
                     if len(person_kpt) > l or len(person_kpt) == l:
                         # 18: "頸部"
                         # 5: "左肩"
-                        l_x_kpt_datas.append(person_kpt[i][5][0])
-                        l_y_kpt_datas.append(person_kpt[i][5][1])
+                        l_x_kpt_datas.append(person_kpt[i][18][0])
+                        l_y_kpt_datas.append(person_kpt[i][18][1])
                 for i in range(len(l_x_kpt_datas)):
                     if i % time_step == 0 :
                         pos_x.append([l_x_kpt_datas[i]])
@@ -917,17 +894,17 @@ class Pose_2d_Tab_Control(QMainWindow):
                     if (len(person_kpt) > l or len(person_kpt) == l):
                         # 20: "左大腳趾"
                         # 21: "右大腳趾"
-                        # 15: "左腳跟"
-                        # 16: "右腳跟"
-                        l_x_ankle_datas.append(person_kpt[i][15][0])
-                        l_y_ankle_datas.append(person_kpt[i][15][1])
-                        r_x_ankle_datas.append(person_kpt[i][16][0])
-                        r_y_ankle_datas.append(person_kpt[i][16][1])
+                        l_x_ankle_datas.append(person_kpt[i][20][0])
+                        l_y_ankle_datas.append(person_kpt[i][20][1])
+                        r_x_ankle_datas.append(person_kpt[i][21][0])
+                        r_y_ankle_datas.append(person_kpt[i][21][1])
                 # Find peaks in the left ankle y-coordinates
                 l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance= 10 , prominence=10,width=10)
+                l_peaks = l_peaks.copy()
                 # Find peaks in the right ankle y-coordinates
                 r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=10, prominence=10,width=10)
-                
+                r_peaks = r_peaks.copy()
+
                 # if len(l_peaks)>0 and len(r_peaks)>0 :
                 #     if l_peaks[0] < r_peaks[0]:
                 #         l_peaks = l_peaks[1:]
