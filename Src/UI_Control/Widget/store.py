@@ -108,7 +108,7 @@ class Store_Widget(QtWidgets.QWidget):
     def draw_image(self,frame_num,frame,person_df):    
         image=frame.copy()
         if not person_df.empty:
-            image = draw_points_and_skeleton(image, person_df, joints_dict()['coco']['skeleton_links'], 
+            image = draw_points_and_skeleton(image, person_df, joints_dict()['haple']['skeleton_links'], 
                                             points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
                                             points_palette_samples=10, confidence_threshold=0.3)
         else:

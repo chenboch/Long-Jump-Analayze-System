@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1170</width>
-    <height>789</height>
+    <width>1247</width>
+    <height>873</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,6 +17,12 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <widget class="QTabWidget" name="Two_d_Tab">
+      <property name="font">
+       <font>
+        <family>Arial</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <property name="currentIndex">
        <number>0</number>
       </property>
@@ -121,8 +127,24 @@
                 <height>30</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <pointsize>20</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="layoutDirection">
+               <enum>Qt::RightToLeft</enum>
+              </property>
               <property name="text">
-               <string>Play</string>
+               <string>▶︎</string>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
               </property>
              </widget>
             </item>
@@ -189,10 +211,15 @@
             <height>16777215</height>
            </size>
           </property>
-          <property name="title">
-           <string>2D Pose</string>
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout_6">
+          <property name="title">
+           <string>2D 關節點</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_7">
            <item>
             <widget class="QGroupBox" name="file_groupbox">
              <property name="title">
@@ -219,6 +246,12 @@
                  <layout class="QGridLayout" name="gridLayout">
                   <item row="2" column="0">
                    <widget class="QPushButton" name="load_data_btn">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>40</height>
+                     </size>
+                    </property>
                     <property name="text">
                      <string>讀取資料</string>
                     </property>
@@ -229,11 +262,11 @@
                     <property name="minimumSize">
                      <size>
                       <width>150</width>
-                      <height>20</height>
+                      <height>40</height>
                      </size>
                     </property>
                     <property name="text">
-                     <string>讀取影片</string>
+                     <string>載入影片</string>
                     </property>
                    </widget>
                   </item>
@@ -242,7 +275,7 @@
                     <property name="minimumSize">
                      <size>
                       <width>150</width>
-                      <height>20</height>
+                      <height>40</height>
                      </size>
                     </property>
                     <property name="text">
@@ -252,6 +285,12 @@
                   </item>
                   <item row="0" column="1">
                    <widget class="QPushButton" name="start_code_btn">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>40</height>
+                     </size>
+                    </property>
                     <property name="text">
                      <string>開始分析</string>
                     </property>
@@ -267,7 +306,7 @@
            <item>
             <widget class="QGroupBox" name="stride_groupbox">
              <property name="title">
-              <string>步幅設定</string>
+              <string>手動步幅設定</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
@@ -275,7 +314,7 @@
                 <item>
                  <widget class="QLabel" name="stride_num_label">
                   <property name="text">
-                   <string>步數 (步):</string>
+                   <string>最大步數 (步):</string>
                   </property>
                  </widget>
                 </item>
@@ -309,7 +348,7 @@
                 <item>
                  <widget class="QLabel" name="length_label">
                   <property name="text">
-                   <string>長度 (cm): </string>
+                   <string>設定長度 (cm): </string>
                   </property>
                  </widget>
                 </item>
@@ -325,7 +364,7 @@
                    <number>1</number>
                   </property>
                   <property name="value">
-                   <number>2</number>
+                   <number>20</number>
                   </property>
                  </widget>
                 </item>
@@ -350,7 +389,7 @@
            <item>
             <widget class="QGroupBox" name="speed_groupbox">
              <property name="title">
-              <string>速度設定</string>
+              <string>手動速度設定</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_5">
               <item>
@@ -359,13 +398,13 @@
                  <widget class="QLabel" name="speed_range_label">
                   <property name="minimumSize">
                    <size>
-                    <width>100</width>
+                    <width>120</width>
                     <height>0</height>
                    </size>
                   </property>
                   <property name="maximumSize">
                    <size>
-                    <width>100</width>
+                    <width>120</width>
                     <height>16777215</height>
                    </size>
                   </property>
@@ -395,6 +434,12 @@
                     <height>16777215</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>~</string>
                   </property>
@@ -409,7 +454,7 @@
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                   </property>
                   <property name="value">
-                   <number>12</number>
+                   <number>14</number>
                   </property>
                  </widget>
                 </item>
@@ -446,7 +491,7 @@
                   </property>
                   <property name="maximumSize">
                    <size>
-                    <width>100</width>
+                    <width>120</width>
                     <height>16777215</height>
                    </size>
                   </property>
@@ -476,6 +521,12 @@
                     <height>16777215</height>
                    </size>
                   </property>
+                  <property name="font">
+                   <font>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
+                  </property>
                   <property name="text">
                    <string>~</string>
                   </property>
@@ -490,9 +541,15 @@
                 </item>
                 <item>
                  <widget class="QPushButton" name="set_frame_range_btn">
-                  <property name="maximumSize">
+                  <property name="minimumSize">
                    <size>
                     <width>100</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>120</width>
                     <height>16777215</height>
                    </size>
                   </property>
@@ -509,7 +566,7 @@
                  <widget class="QLabel" name="set_fps_label">
                   <property name="maximumSize">
                    <size>
-                    <width>100</width>
+                    <width>120</width>
                     <height>16777215</height>
                    </size>
                   </property>
@@ -527,7 +584,7 @@
                    <number>1000</number>
                   </property>
                   <property name="value">
-                   <number>60</number>
+                   <number>240</number>
                   </property>
                  </widget>
                 </item>
@@ -550,115 +607,219 @@
             </widget>
            </item>
            <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <widget class="QLabel" name="ID_label">
-               <property name="text">
-                <string>ID:</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QComboBox" name="ID_selector"/>
-             </item>
-             <item>
-              <widget class="QPushButton" name="ID_Locker">
-               <property name="text">
-                <string>Lock ID</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_5">
-             <item>
-              <widget class="QCheckBox" name="show_skeleton_checkBox">
-               <property name="text">
-                <string>Show Skeleton</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="show_bbox_checkbox">
-               <property name="text">
-                <string>Show BBox</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QSpinBox" name="li_interval">
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-               <property name="minimum">
-                <number>1</number>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="smooth_data_btn">
-               <property name="text">
-                <string>Smooth Data</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="li_btn">
-               <property name="text">
-                <string>線性內插</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QTableWidget" name="keypoint_table">
-             <property name="minimumSize">
-              <size>
-               <width>400</width>
-               <height>0</height>
-              </size>
+            <widget class="QGroupBox" name="id_adjust_groupbox">
+             <property name="title">
+              <string>手動ID修正</string>
              </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>16777215</height>
-              </size>
-             </property>
-             <column>
-              <property name="text">
-               <string>Keypoint</string>
-              </property>
-             </column>
-             <column>
-              <property name="text">
-               <string>X</string>
-              </property>
-             </column>
-             <column>
-              <property name="text">
-               <string>Y</string>
-              </property>
-             </column>
-             <column>
-              <property name="text">
-               <string>有無更改</string>
-              </property>
-             </column>
+             <layout class="QVBoxLayout" name="verticalLayout_8">
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_4">
+                <item>
+                 <widget class="QLabel" name="ID_label">
+                  <property name="minimumSize">
+                   <size>
+                    <width>120</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>120</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>修正ID:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="before_correct_id">
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_3">
+                  <property name="maximumSize">
+                   <size>
+                    <width>15</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>&gt;</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="after_correct_id">
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="id_correct_btn">
+                  <property name="minimumSize">
+                   <size>
+                    <width>100</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>100</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>修正ID</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_12">
+                <item>
+                 <widget class="QLabel" name="label_4">
+                  <property name="minimumSize">
+                   <size>
+                    <width>120</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>120</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>選定ID分析</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="select_id_input">
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                  <property name="value">
+                   <number>1</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="start_analyze_btn">
+                  <property name="minimumSize">
+                   <size>
+                    <width>100</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>100</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>開始分析</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="correct_btn">
-             <property name="minimumSize">
-              <size>
-               <width>300</width>
-               <height>0</height>
-              </size>
+            <widget class="QGroupBox" name="kpt_adjust_groupbox">
+             <property name="title">
+              <string>手動關節點修正</string>
              </property>
-             <property name="text">
-              <string>改正</string>
-             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_5">
+                <item>
+                 <widget class="QCheckBox" name="show_skeleton_checkBox">
+                  <property name="text">
+                   <string>Show Skeleton</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="show_bbox_checkbox">
+                  <property name="text">
+                   <string>Show BBox</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QTableWidget" name="keypoint_table">
+                <property name="minimumSize">
+                 <size>
+                  <width>400</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <column>
+                 <property name="text">
+                  <string>Keypoint</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>X</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>Y</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>有無更改</string>
+                 </property>
+                </column>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="correct_btn">
+                <property name="minimumSize">
+                 <size>
+                  <width>300</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>改正</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
           </layout>
@@ -675,7 +836,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1170</width>
+     <width>1247</width>
      <height>21</height>
     </rect>
    </property>

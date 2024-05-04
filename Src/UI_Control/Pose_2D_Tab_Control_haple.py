@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import *
 # from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtGui import QPainter, QPen, QColor, QImage, QPixmap, QFont
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks , argrelextrema
 from PyQt5.QtCore import Qt, QPointF
 import numpy as np
 import sys
@@ -72,30 +72,25 @@ class Pose_2d_Tab_Control(QMainWindow):
             lambda: self.ui.frame_slider.setValue(self.ui.frame_slider.value() + 1)
         )
         self.ui.frame_slider.valueChanged.connect(self.analyze_frame)
-        self.ui.ID_selector.currentTextChanged.connect(lambda: self.import_data_to_table(self.ui.frame_slider.value()))
         self.ui.correct_btn.clicked.connect(self.update_person_df)
         self.ui.show_skeleton_checkBox.setChecked(True)
-        self.ui.ID_Locker.clicked.connect(self.ID_locker)
+        self.ui.show_bbox_checkbox.setChecked(True)
         self.ui.keypoint_table.cellActivated.connect(self.on_cell_clicked)
         self.ui.Frame_View.mousePressEvent = self.mousePressEvent
-        self.ui.store_data_btn.clicked.connect(self.show_store_window)
-        self.ui.li_btn.clicked.connect(self.linear_interpolation)
+        self.ui.store_data_btn.clicked.connect(self.show_store_window) 
         self.ui.load_data_btn.clicked.connect(self.load_json)
-        self.ui.smooth_data_btn.clicked.connect(self.smooth_data)
-        self.ui.start_code_btn.clicked.connect(self.start_analyze_frame)
+        # self.ui.start_code_btn.clicked.connect(self.start_analyze_frame)
         self.ui.set_length_btn.clicked.connect(self.set_length)
         self.ui.set_fps_btn.clicked.connect(self.set_frame_ratio)
+        self.ui.start_analyze_btn.clicked.connect(self.start_runner_analyze)
+        self.ui.id_correct_btn.clicked.connect(self.correct_person_id)
 
     def init_model(self):
-        # self.detector = init_detector(
-        # self.args.det_config, self.args.det_checkpoint)
         self.detector = init_detector(
         self.args.det_config, self.args.det_checkpoint, device=self.args.device)
         self.detector.cfg.test_dataloader.dataset.pipeline[
         0].type = 'mmdet.LoadImageFromNDArray'
         self.detector_test_pipeline = Compose(self.detector.cfg.test_dataloader.dataset.pipeline)
-        # self.detector.cfg = adapt_mmdet_pipeline(self.detector.cfg)
-        # self.yolo =  YOLOV7Model(self.yolo_args)
         self.pose_estimator = init_pose_estimator(
         self.args.pose_config,
         self.args.pose_checkpoint,
@@ -111,7 +106,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.is_play=False
         self.processed_images=-1
         self.fps = 30
-
+        self.runner_analyze = False
         self.stride_num = 6
         self.speed_range = [0,14]
         self.frame_ratio = 1/120
@@ -129,14 +124,12 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.length_ratio = 0
         self.start_frame_num = 0
         self.line_pos = []
-        self.end_line_pos = 0
         self.is_set_length = False
         self.distance_dict = {}
         self.processed_frames = set()
         self.person_df = pd.DataFrame()
         self.person_data = []
         self.label_kpt = False
-        self.ID_lock = False
         self.select_id = 0
         self.select_kpt_index = 11
         pg.setConfigOption('background', 'w')
@@ -160,11 +153,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         help='Category id for bounding box detection model')
         self.parser.add_argument(
             '--score-thr', type=float, default=0.3, help='Bbox score threshold')
-        # self.parser.add_argument(
-        #     '--bbox-thr',
-        #     type=float,
-        #     default=0.3,
-        #     help='Bounding box score threshold')
         self.parser.add_argument(
             '--nms-thr',
             type=float,
@@ -382,8 +370,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         for person in pred_instances:
             kpts = np.round(person['keypoints'][0], 2)
             kpt_scores = np.round(person['keypoint_scores'][0], 2)
-            kpt_datas = np.hstack((kpts, kpt_scores.reshape(-1, 1)))
-            
+            kpt_datas = np.hstack((kpts, kpt_scores.reshape(-1, 1)))     
             # Add a boolean value to each element in kpt_datas
             kpt_datas = np.hstack((kpt_datas, np.full((len(kpt_datas), 1), False, dtype=bool)))
             person_kpts.append(kpt_datas)
@@ -402,6 +389,9 @@ class Pose_2d_Tab_Control(QMainWindow):
                 'keypoints': new_kpts
             })
         self.person_df = pd.DataFrame(self.person_data)
+        # if not self.person_df.empty:
+        #     print(self.person_df)
+        #     exit()
 
     def play_btn_clicked(self):
         if self.video_path == "":
@@ -409,41 +399,25 @@ class Pose_2d_Tab_Control(QMainWindow):
             return
         self.is_play = not self.is_play
         if self.is_play:
-            self.ui.play_btn.setText("Pause")
+            self.ui.play_btn.setText("||")
             self.play_frame(self.ui.frame_slider.value())
         else:
-            self.ui.play_btn.setText("Play")
+            self.ui.play_btn.setText("▶︎")
 
     def update_person_df(self):
-        try:
-            # 获取当前选择的人员 ID
-            person_id = int(self.ui.ID_selector.currentText())
-            # 获取当前帧数
-            frame_num = self.ui.frame_slider.value()
-            # 获取表格中的数据并更新到 DataFrame 中
-            for kpt_idx in range(self.ui.keypoint_table.rowCount()):
-                kpt_name = self.ui.keypoint_table.item(kpt_idx, 0).text()
-                kpt_x = float(self.ui.keypoint_table.item(kpt_idx, 1).text())
-                kpt_y = float(self.ui.keypoint_table.item(kpt_idx, 2).text())
-                # 更新 DataFrame 中对应的值
-                self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
-                                   (self.person_df['person_id'] == person_id), 'keypoints'].iloc[0][kpt_idx][:2] = [kpt_x, kpt_y]
-            
+        person_id = self.select_id
+        # 获取当前帧数
+        frame_num = self.ui.frame_slider.value()
+        # 获取表格中的数据并更新到 DataFrame 中
+        for kpt_idx in range(self.ui.keypoint_table.rowCount()):
+            kpt_name = self.ui.keypoint_table.item(kpt_idx, 0).text()
+            kpt_x = float(self.ui.keypoint_table.item(kpt_idx, 1).text())
+            kpt_y = float(self.ui.keypoint_table.item(kpt_idx, 2).text())
+            # 更新 DataFrame 中对应的值
+            self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
+                                (self.person_df['person_id'] == person_id), 'keypoints'].iloc[0][kpt_idx][:2] = [kpt_x, kpt_y]
+        
             self.update_frame()
-        except ValueError:
-            print("无法将文本转换为数字")
-        except IndexError:
-            print("索引超出范围")
-
-    def start_analyze_frame(self):
-        for i in range(0, self.total_images-1):
-            image = self.video_images[i]
-            pred_instances, person_ids = process_one_image(self.args, image, self.detector, self.detector_test_pipeline, self.pose_estimator, self.tracker)
-            # the keyscore > 1.0??
-            person_kpts = self.merge_keypoint_datas(pred_instances)
-            person_bboxes = pred_instances['bboxes']
-            self.merge_person_datas(i, person_ids, person_bboxes, person_kpts)
-            self.processed_frames.add(i)
 
     def analyze_frame(self):
         frame_num = self.ui.frame_slider.value()
@@ -457,38 +431,21 @@ class Pose_2d_Tab_Control(QMainWindow):
         
         ori_image=self.video_images[frame_num].copy()
         image = ori_image.copy()
-
-        if frame_num not in self.processed_frames:
-            # self.timer.tic()
-            # det = detect_image(self.yolo_args,self.yolo_model,image)
-            # print(det)
-            # exit()
-            pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.detector_test_pipeline,self.pose_estimator,self.tracker)
-            average_time = self.timer.toc()
-            fps= int(1/max(average_time,0.00001))
-            if fps <10:
-                self.ui.fps_label.setText(f"FPS: 0{fps}")
-            else:
-                self.ui.fps_label.setText(f"FPS: {fps}")
-            # print(f"process_one_image FPS: {fps}")
-            # pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.pose_estimator,self.tracker)
-            # the keyscore > 1.0??
-            person_kpts = self.merge_keypoint_datas(pred_instances)
-            person_bboxes = pred_instances['bboxes']
-            self.merge_person_datas(frame_num, person_ids, person_bboxes, person_kpts)
-            self.processed_frames.add(frame_num)
-            
+    
         if self.ui.frame_slider.value() == (self.total_images-1):
             self.ui.play_btn.click()
 
-        if not self.ID_lock:
-            self.import_id_to_selector(frame_num)
+        if self.runner_analyze:
+            self.analyze_person(frame_num)
         else:
-            self.check_id_exist(frame_num)
-        self.smooth_kpt()
-        self.obtain_velocity()
-        self.obtain_distance()
-        self.import_data_to_table(frame_num)  
+            if frame_num not in self.processed_frames:
+                self.detect_kpt(image, frame_num)
+                print("detect")
+        # print(self.person_df)
+        # self.smooth_kpt()
+        # self.obtain_velocity()
+        # self.obtain_distance()
+        # self.import_data_to_table(frame_num)  
         self.update_frame()
         # if len(self.stride_graph) > 0:
                  
@@ -512,103 +469,84 @@ class Pose_2d_Tab_Control(QMainWindow):
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
 
+    def detect_kpt(self,image,frame_num):
+        self.timer.tic()
+        pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.detector_test_pipeline,self.pose_estimator,self.tracker)
+        average_time = self.timer.toc()
+        fps= int(1/max(average_time,0.00001))
+        if fps <10:
+            self.ui.fps_label.setText(f"FPS: 0{fps}")
+        else:
+            self.ui.fps_label.setText(f"FPS: {fps}")
+        # the keyscore > 1.0??
+        person_kpts = self.merge_keypoint_datas(pred_instances)
+        person_bboxes = pred_instances['bboxes']
+        self.merge_person_datas(frame_num, person_ids, person_bboxes, person_kpts)
+        self.processed_frames.add(frame_num)
+        self.smooth_kpt(person_ids)
+
+    def analyze_person(self,frame):
+        self.obtain_velocity(self.select_id)
+        self.obtain_distance(self.select_id)
+        self.import_data_to_table(self.select_id, frame)
+
     def obtain_curr_data(self):
         curr_person_df = pd.DataFrame()
         frame_num = self.ui.frame_slider.value()
-        if self.ui.ID_selector.count() > 0:
-            if self.ui.show_skeleton_checkBox.isChecked():
-                try :
-                        person_id = int(self.ui.ID_selector.currentText())
-                        curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
-                                                            (self.person_df['person_id'] == person_id)]
-                except ValueError:
-                    print("valueError")
-            else:
-                curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
+        if not self.person_df.empty:
+            curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
+            # print(curr_person_df)
         return curr_person_df, frame_num
 
-    def check_id_exist(self,frame_num):
-        try:
-            curr_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
-            if curr_person_df.empty:
-                print("check_id_exist未找到特定幀的數據")
-                return
-            person_ids = sorted(curr_person_df['person_id'].unique())
-            if self.select_id not in person_ids:
-                print("True")
-                self.ui.ID_Locker.click()
+    def start_runner_analyze(self):
+        self.ui.frame_slider.setValue(0)
+        self.runner_analyze = True
+        if not self.person_df.empty:
+            person_id = self.ui.select_id_input.value()
+            person_ids = sorted(self.person_df['person_id'].unique())
+            if person_id in person_ids:
+                self.select_id = person_id
+                QMessageBox.information(self, "ID設定", "開始分析特定ID!")
+            else:
+                QMessageBox.information(self, "ID設定", "找不到特定ID!")
 
-        except KeyError:
-            # print("未找到'frame_number'或'person_id'列")
-            pass
+    def import_data_to_table(self, person_id, frame_num):
+        # 清空表格視圖
+        self.clear_table_view()
 
-    def import_id_to_selector(self, frame_num):
-        try:
-            self.ui.ID_selector.clear()
-            filter_person_df = self.person_df.loc[(self.person_df['frame_number'] == frame_num)]
-            if filter_person_df.empty:
-                # print("import_id_to_selector未找到特定幀的數據")
-                self.clear_table_view()
-                return
+        # 獲取特定人員在特定幀的數據
+        person_data = self.person_df.loc[(self.person_df['frame_number'] == frame_num) & (self.person_df['person_id'] == person_id)]
 
-            person_ids = sorted(filter_person_df['person_id'].unique())
-            for person_id in person_ids:
-                # if person_id == 3:
-                self.ui.ID_selector.addItem(str(person_id))
-
-        except KeyError:
-            # print("未找到'frame_number'或'person_id'列")
-            pass
-
-    def import_data_to_table(self, frame_num):
-        try:
-            person_id = self.ui.ID_selector.currentText()
-            if person_id :
-                person_id = int(person_id)
-            else :
-                return
-            # 清空表格視圖
+        if person_data.empty:
+            print("未找到特定人員在特定幀的數據")
             self.clear_table_view()
+            return
 
-            # 獲取特定人員在特定幀的數據
-            person_data = self.person_df.loc[(self.person_df['frame_number'] == frame_num) & (self.person_df['person_id'] == person_id)]
+        # 確保表格視圖大小足夠
+        num_keypoints = len(self.kpts_dict)
+        if self.ui.keypoint_table.rowCount() < num_keypoints:
+            self.ui.keypoint_table.setRowCount(num_keypoints)
 
-            if person_data.empty:
-                print("未找到特定人員在特定幀的數據")
-                self.clear_table_view()
-                return
+        # 將關鍵點數據匯入到表格視圖中
+        for kpt_idx, kpt in enumerate(person_data['keypoints'].iloc[0]): 
+            kptx, kpty, kpt_label = kpt[0], kpt[1], kpt[3]
+            kpt_name = self.kpts_dict[kpt_idx]
+            kpt_name_item = QTableWidgetItem(str(kpt_name))
+            kptx_item = QTableWidgetItem(str(np.round(kptx,1)))
+            kpty_item = QTableWidgetItem(str(np.round(kpty,1)))
+            if kpt_label :
+                kpt_label_item = QTableWidgetItem("Y")
+            else:
+                kpt_label_item = QTableWidgetItem("N")
+            kpt_name_item.setTextAlignment(Qt.AlignRight)
+            kptx_item.setTextAlignment(Qt.AlignRight)
+            kpty_item.setTextAlignment(Qt.AlignRight)
+            kpt_label_item.setTextAlignment(Qt.AlignRight)
+            self.ui.keypoint_table.setItem(kpt_idx, 0, kpt_name_item)
+            self.ui.keypoint_table.setItem(kpt_idx, 1, kptx_item)
+            self.ui.keypoint_table.setItem(kpt_idx, 2, kpty_item)
+            self.ui.keypoint_table.setItem(kpt_idx, 3, kpt_label_item)
 
-            # 確保表格視圖大小足夠
-            num_keypoints = len(self.kpts_dict)
-            if self.ui.keypoint_table.rowCount() < num_keypoints:
-                self.ui.keypoint_table.setRowCount(num_keypoints)
-
-            # 將關鍵點數據匯入到表格視圖中
-            for kpt_idx, kpt in enumerate(person_data['keypoints'].iloc[0]): 
-                kptx, kpty, kpt_label = kpt[0], kpt[1], kpt[3]
-                kpt_name = self.kpts_dict[kpt_idx]
-                kpt_name_item = QTableWidgetItem(str(kpt_name))
-                kptx_item = QTableWidgetItem(str(np.round(kptx,1)))
-                kpty_item = QTableWidgetItem(str(np.round(kpty,1)))
-                if kpt_label :
-                    kpt_label_item = QTableWidgetItem("Y")
-                else:
-                    kpt_label_item = QTableWidgetItem("N")
-                kpt_name_item.setTextAlignment(Qt.AlignRight)
-                kptx_item.setTextAlignment(Qt.AlignRight)
-                kpty_item.setTextAlignment(Qt.AlignRight)
-                kpt_label_item.setTextAlignment(Qt.AlignRight)
-                self.ui.keypoint_table.setItem(kpt_idx, 0, kpt_name_item)
-                self.ui.keypoint_table.setItem(kpt_idx, 1, kptx_item)
-                self.ui.keypoint_table.setItem(kpt_idx, 2, kpty_item)
-                self.ui.keypoint_table.setItem(kpt_idx, 3, kpt_label_item)
-        # except ValueError:
-        #     print("未找到人員的ID列表")
-        except AttributeError:
-            print("未找到人員ID")
-        except KeyError:
-            print("人員ID在列表中不存在")
-            
     def clear_table_view(self):
         # 清空表格視圖
         self.ui.keypoint_table.clear()
@@ -668,8 +606,6 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.line_pos = np.append(self.line_pos, pos)
             self.update_frame()
             if len(self.line_pos) == 4:
-                self.end_line_pos = self.line_pos[0]
-                print(self.end_line_pos)
                 pos_f = np.array([self.line_pos[0], self.line_pos[1]])
                 pos_s = np.array([self.line_pos[2], self.line_pos[3]])
                 length = np.linalg.norm(pos_f - pos_s)
@@ -677,40 +613,10 @@ class Pose_2d_Tab_Control(QMainWindow):
                 print(self.length_ratio)
                 self.is_set_length = False
                 QMessageBox.information(self, "設定長度", "設定長度完成!")
-
-    def smooth_data(self):
-        for curr_frame_num in self.processed_frames:
-            person_id = int(self.ui.ID_selector.currentText())
-            if curr_frame_num == 0:
-                pre_frame_num = 0
-            else:
-                pre_frame_num = curr_frame_num - 1
-            pre_person_data = self.person_df.loc[(self.person_df['frame_number'] == pre_frame_num) &
-                                                (self.person_df['person_id'] == person_id)]
-            curr_person_data = self.person_df.loc[(self.person_df['frame_number'] == curr_frame_num) &
-                                                (self.person_df['person_id'] == person_id)]
-            if not curr_person_data.empty:
-                pre_kpts = pre_person_data.iloc[0]['keypoints']
-                curr_kpts = curr_person_data.iloc[0]['keypoints']
-                smoothed_kpts = []
-                for pre_kpt, curr_kpt in zip(pre_kpts, curr_kpts): 
-                    pre_kptx, pre_kpty = pre_kpt[0], pre_kpt[1]
-                    curr_kptx , curr_kpty = curr_kpt[0], curr_kpt[1]
-                    if pre_kptx != 0 and pre_kpty != 0 and curr_kptx != 0 and curr_kpty !=0:                 
-                        curr_kptx = self.smooth_tool(curr_kptx, pre_kptx)
-                        curr_kpty = self.smooth_tool(curr_kpty, pre_kpty)
-                    else:
-                        pass
-                    smoothed_kpts.append([curr_kptx, curr_kpty, 0.9])  # 设置可信度为默认值
-                # 更新 DataFrame 中的数据
-                self.person_df.at[curr_person_data.index[0], 'keypoints'] = smoothed_kpts
-            else:
-                print("Previous frame data not found for smooth.")
-        print("Smooth process is finished.")
     
-    def smooth_kpt(self):
-        if self.ui.ID_selector.count() > 0 :
-            person_id = int(self.ui.ID_selector.currentText())
+    def smooth_kpt(self,person_ids):
+        for person_id in person_ids:
+            # person_id = int(self.ui.ID_selector.currentText())
             person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
             if len(person_kpt) > 0 and self.start_frame_num ==0 :
                 self.start_frame_num = self.ui.frame_slider.value()
@@ -720,7 +626,6 @@ class Pose_2d_Tab_Control(QMainWindow):
                     pre_frame_num = 0
                 else:
                     pre_frame_num = curr_frame - 1
-
             pre_person_data = self.person_df.loc[(self.person_df['frame_number'] == pre_frame_num) &
                                                 (self.person_df['person_id'] == person_id)]
             curr_person_data = self.person_df.loc[(self.person_df['frame_number'] == curr_frame) &
@@ -737,20 +642,8 @@ class Pose_2d_Tab_Control(QMainWindow):
                         curr_kptx = self.smooth_tool(curr_kptx, pre_kptx)
                         curr_kpty = self.smooth_tool(curr_kpty, pre_kpty)
                     smoothed_kpts.append([curr_kptx, curr_kpty, curr_conf, curr_label])  # 设置可信度为默认值
-        #         # 更新 DataFrame 中的数据
+                # 更新 DataFrame 中的数据
                 self.person_df.at[curr_person_data.index[0], 'keypoints'] = smoothed_kpts
-  
-    def ID_locker(self):
-        if not self.ID_lock:
-            self.ui.ID_selector.setEnabled(False)
-            self.select_id = int(self.ui.ID_selector.currentText())
-            self.ID_lock = True
-            self.ui.ID_Locker.setText("Unlock")
-        else:
-            self.ui.ID_Locker.setText("Lock")
-            self.select_id = 0
-            self.ID_lock = False
-            self.ui.ID_selector.setEnabled(True)
 
     def show_store_window(self):
         if self.person_df.empty:
@@ -759,39 +652,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         else:
             self.store_window = Store_Widget(self.video_name, self.video_images, self.person_df)
             self.store_window.show()
-    
-    def linear_interpolation(self):
-        try:
-            end = self.ui.frame_slider.value()
-            start = end - 30
-            
-            # 获取当前帧的人员数据和上一帧的人员数据
-            last_person_data = self.obtain_curr_data()[0]['keypoints'].iloc[0]
-            person_id = int(self.ui.ID_selector.currentText())
-            curr_person_data = self.person_df.loc[(self.person_df['frame_number'] == start) &
-                                                (self.person_df['person_id'] == person_id)]
-            # 确保当前帧和上一帧的数据都存在
-            if not curr_person_data.empty:
-                curr_person_data = curr_person_data.iloc[0]['keypoints']
-                self.ui.frame_slider.setValue(start)
-                # 计算每个关键点的线性插值的差值
-                #haple
-                diff = np.subtract(last_person_data[26:], curr_person_data[26:])
-                diff[:, 2] = 0.9
-                # 对后续帧应用线性插值
-                i = 1
-                for frame_num in range(start, end):
-                    for index, row in self.person_df[self.person_df['frame_number'] == frame_num].iterrows():
-                        relative_distance = i / (end - start)  # 计算相对距离
-                        #haple
-                        self.person_df.at[index, 'keypoints'][26:] = np.add(curr_person_data[26:], relative_distance * diff)
-                    i += 1
-            else:
-                print("Previous frame data not found for interpolation.")
-        except UnboundLocalError:
-            print("An error occurred in linear_interpolation function")
-        except ValueError:
-            print("ValueError occurred in linear_interpolation function")
 
     def keyPressEvent(self, event):
             if event.key() == ord('D') or event.key() == ord('d'):
@@ -814,7 +674,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             # 从 JSON 文件中读取数据并转换为 DataFrame
             self.person_df = pd.read_json(json_path)
             process_frame_nums = sorted(self.person_df['frame_number'].unique())
-            self.processed_frames = set(process_frame_nums) 
+            self.processed_frames = set(i for i in range(min(process_frame_nums),max(process_frame_nums))) 
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
@@ -826,126 +686,137 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.speed_graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
         self.speed_graph.getAxis("bottom").setStyle(tickFont=font)
 
-    def obtain_velocity(self):
+    def obtain_velocity(self,person_id):
         time_step = 30
-        if self.ui.ID_selector.count() > 0 :
-            person_id = int(self.ui.ID_selector.currentText())
+        curr_frame_num = self.ui.frame_slider.value()
+        if self.start_frame_num == 0 :
+            self.start_frame_num = min(self.person_df.loc[(self.person_df['person_id'] == person_id)]['frame_number'])
+        if self.start_frame_num != 0 and (curr_frame_num > self.start_frame_num or curr_frame_num == self.start_frame_num): 
             person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-            if len(person_kpt) > 0 and self.start_frame_num == 0 :
-                self.start_frame_num = self.ui.frame_slider.value()
-            if self.start_frame_num != 0: 
-                person_kpt = person_kpt.to_numpy()
-                l_x_kpt_datas = []
-                l_y_kpt_datas = []
-                pos_x = []
-                pos_y = []
-                v = []
-                t = []
-                l = self.ui.frame_slider.value() - self.start_frame_num
-                for i in range(l):
-                    if len(person_kpt) > l or len(person_kpt) == l:
-                        # 18: "頸部"
-                        # 5: "左肩"
-                        l_x_kpt_datas.append(person_kpt[i][18][0])
-                        l_y_kpt_datas.append(person_kpt[i][18][1])
-                for i in range(len(l_x_kpt_datas)):
-                    if i % time_step == 0 :
-                        pos_x.append([l_x_kpt_datas[i]])
-                        pos_y.append([l_y_kpt_datas[i]])
-                # print(pos_x)
-                if len(pos_x) > 1 :
-                    for i in range(len(pos_x)):
-                        if i > 0:
-                            pos_f = np.array([pos_x[i-1], pos_y[i-1]])
-                            pos_s = np.array([pos_x[i], pos_y[i]])
-                            # if pos_f[0] < self.end_line_pos: 
-                            length = np.linalg.norm(pos_f - pos_s)
-                            temp_v = (length * self.length_ratio) / (time_step * self.frame_ratio)
-                            v.append(temp_v) 
-                        else:
-                            v.append(0)
-                for i in range(len(v)):
-                    temp_t = self.start_frame_num + i * time_step
-                    t.append(temp_t)
-                t = t[1:]
-                v = v[1:]
-                # print(t)
-                # print(v)
-                if len(v) > 0:
-                    self.update_speed_graph(t, v)
-                    # print(v)
-
-    def obtain_distance(self):
-        if self.ui.ID_selector.count() > 0:
-            person_id = int(self.ui.ID_selector.currentText())
-            person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-            
-            if self.start_frame_num != 0: 
-                person_kpt = person_kpt.to_numpy()
-                l_x_ankle_datas = []
-                l_y_ankle_datas = []
-                r_x_ankle_datas = []
-                r_y_ankle_datas = []
-                t_pos = []
-                d = []
-                l = self.ui.frame_slider.value() - self.start_frame_num
-
-                for i in range(l):
-                    if (len(person_kpt) > l or len(person_kpt) == l):
-                        # 20: "左大腳趾"
-                        # 21: "右大腳趾"
-                        l_x_ankle_datas.append(person_kpt[i][20][0])
-                        l_y_ankle_datas.append(person_kpt[i][20][1])
-                        r_x_ankle_datas.append(person_kpt[i][21][0])
-                        r_y_ankle_datas.append(person_kpt[i][21][1])
-                # Find peaks in the left ankle y-coordinates
-                l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance= 10 , prominence=10,width=10)
-                l_peaks = l_peaks.copy()
-                # Find peaks in the right ankle y-coordinates
-                r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=10, prominence=10,width=10)
-                r_peaks = r_peaks.copy()
-
-                # if len(l_peaks)>0 and len(r_peaks)>0 :
-                #     if l_peaks[0] < r_peaks[0]:
-                #         l_peaks = l_peaks[1:]
-                #     else:
-                #         r_peaks = r_peaks[1:]
-
-
-                if len(l_peaks) >0 and len(r_peaks) > 0:
-                    if l_peaks[0] < r_peaks[0]:
-                        for i in range(len(l_peaks)):
-
-                            t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
-                            if i < len(r_peaks):
-                                t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[l_peaks[i]]])
-                    else:
-                        for i in range(len(r_peaks)):
-                            t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[r_peaks[i]]])
-                            if i < len(l_peaks):
-                                t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
-                
-                prev_pos = np.array([]) 
-                for i in range(len(t_pos)):
+            person_kpt = person_kpt.to_numpy()
+            l_x_kpt_datas = []
+            l_y_kpt_datas = []
+            pos_x = []
+            pos_y = []
+            v = []
+            t = []
+            l = curr_frame_num - self.start_frame_num
+            for i in range(l):
+                if len(person_kpt) > l or len(person_kpt) == l:
+                    # 18: "頸部"
+                    # 5: "左肩"
+                    l_x_kpt_datas.append(person_kpt[i][18][0])
+                    l_y_kpt_datas.append(person_kpt[i][18][1])
+            for i in range(len(l_x_kpt_datas)):
+                if i % time_step == 0 :
+                    pos_x.append([l_x_kpt_datas[i]])
+                    pos_y.append([l_y_kpt_datas[i]])
+            # print(pos_x)
+            if len(pos_x) > 1 :
+                for i in range(len(pos_x)):
                     if i > 0:
-                        curr_pos = np.array(t_pos[i])
-                        t_d = np.linalg.norm(prev_pos - curr_pos)
-                        d.append(np.round(t_d*self.length_ratio,2))
-                        prev_pos = np.array(curr_pos)
+                        pos_f = np.array([pos_x[i-1], pos_y[i-1]])
+                        pos_s = np.array([pos_x[i], pos_y[i]])
+                        length = np.linalg.norm(pos_f - pos_s)
+                        temp_v = (length * self.length_ratio) / (time_step * self.frame_ratio)
+                        v.append(temp_v) 
                     else:
-                        prev_pos = np.array(t_pos[0])
+                        v.append(0)
+            for i in range(len(v)):
+                temp_t = self.start_frame_num + i * time_step
+                t.append(temp_t)
+            t = t[1:]
+            v = v[1:]
+            if len(v) > 0:
+                self.update_speed_graph(t, v)
+                # print(v)
 
-                if len(r_peaks)>0 and len(l_peaks)>0 and len(d)>0:
-                    self.update_stride_graph(d)  
-                    self.distance_dict = {'right ankle x': r_x_ankle_datas,
-                                    'right ankle y': r_y_ankle_datas,
-                                    'left ankle x': l_x_ankle_datas,
-                                    'left ankle y': l_y_ankle_datas,
-                                    'l_peaks': l_peaks,
-                                    'r_peaks': r_peaks,
-                                    't_pos': t_pos,
-                                    'd': d}
-               
+    def obtain_distance(self,person_id):
+        person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
+        
+        if self.start_frame_num != 0: 
+            person_kpt = person_kpt.to_numpy()
+            l_x_ankle_datas = []
+            l_y_ankle_datas = []
+            r_x_ankle_datas = []
+            r_y_ankle_datas = []
+            t_pos = []
+            d = []
+            l = self.ui.frame_slider.value() - self.start_frame_num
+
+            for i in range(l):
+                if (len(person_kpt) > l or len(person_kpt) == l):
+                    # 20: "左大腳趾"
+                    # 21: "右大腳趾"
+                    l_x_ankle_datas.append(person_kpt[i][20][0])
+                    l_y_ankle_datas.append(person_kpt[i][20][1])
+                    r_x_ankle_datas.append(person_kpt[i][21][0])
+                    r_y_ankle_datas.append(person_kpt[i][21][1])
+            # Find peaks in the left ankle y-coordinates
+            l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance=10, width=10, prominence=5)
+            # l_peaks = argrelextrema(np.array(l_y_ankle_datas), np.greater,order=20)
+            # l_peaks = l_peaks.copy()
+
+            # Find peaks in the right ankle y-coordinates
+            r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=10, width=10, prominence=5)
+            # r_peaks = argrelextrema(np.array(r_y_ankle_datas), np.greater,order=20)
+            # r_peaks = r_peaks.copy()
+            # print(l_peaks)
+            # print(r_peaks)
+            # if self.ui.frame_slider.value() == 100:
+            #     x = np.array(l_y_ankle_datas)
+            #     # print(x)
+            #     y = np.array(r_y_ankle_datas)
+            #     plt.plot(x)
+            #     plt.plot(l_peaks, x[np.array(l_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
+            #     plt.plot(np.zeros_like(x), "--", color="green")
+            #     plt.plot(y)
+            #     plt.plot(r_peaks, y[np.array(r_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
+            #     plt.plot(np.zeros_like(y), "--", color="green")
+            #     plt.show()
+            # if len(l_peaks)>0 and len(r_peaks)>0 :
+            #     if l_peaks[0] < r_peaks[0]:
+            #         l_peaks = l_peaks[1:]
+            #     else:
+            #         r_peaks = r_peaks[1:]
+
+
+            if len(l_peaks) >0 and len(r_peaks) > 0:
+                if l_peaks[0] < r_peaks[0]:
+                    for i in range(len(l_peaks)):
+
+                        t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
+                        if i < len(r_peaks):
+                            t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[l_peaks[i]]])
+                else:
+                    for i in range(len(r_peaks)):
+                        t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[r_peaks[i]]])
+                        if i < len(l_peaks):
+                            t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
+            
+            prev_pos = np.array([]) 
+            for i in range(len(t_pos)):
+                if i > 0:
+                    curr_pos = np.array(t_pos[i])
+                    t_d = np.linalg.norm(prev_pos - curr_pos)
+                    d.append(np.round(t_d*self.length_ratio,2))
+                    prev_pos = np.array(curr_pos)
+                else:
+                    prev_pos = np.array(t_pos[0])
+
+            if len(r_peaks)>0 and len(l_peaks)>0 and len(d)>0:
+                self.update_stride_graph(d)  
+                self.distance_dict = {'right ankle x': r_x_ankle_datas,
+                                'right ankle y': r_y_ankle_datas,
+                                'left ankle x': l_x_ankle_datas,
+                                'left ankle y': l_y_ankle_datas,
+                                'l_peaks': l_peaks,
+                                'r_peaks': r_peaks,
+                                't_pos': t_pos,
+                                'd': d}
+            else:
+                self.distance_dict = {}
+            
     def update_stride_graph(self, d):
         # 計算平均值
         self.stride_graph.clear()
@@ -988,6 +859,35 @@ class Pose_2d_Tab_Control(QMainWindow):
             label.setPos(i, val+1)
             self.speed_graph.addItem(label)
 
+    def correct_person_id(self):
+        # 檢查人員DataFrame是否為空
+        if self.person_df.empty:
+            return
+
+        # 獲取要更正的人員ID和更正後的人員ID
+        before_correct_id = self.ui.before_correct_id.value()
+        after_correct_id = self.ui.after_correct_id.value()
+
+        # 確保要更正的人員ID和更正後的人員ID都在DataFrame中存在
+        if (before_correct_id not in self.person_df['person_id'].unique()) or (after_correct_id not in self.person_df['person_id'].unique()):
+            print("here")
+            return
+
+        # 獲取當前帧數
+        frame_num = self.ui.frame_slider.value()
+
+        # 遍歷從當前帧數到最大處理帧數的範圍
+        for i in range(frame_num, max(self.processed_frames)):
+            # 尋找要交換的行
+            condition_1 = (self.person_df['frame_number'] == i) & (self.person_df['person_id'] == before_correct_id)
+            condition_2 = (self.person_df['frame_number'] == i) & (self.person_df['person_id'] == after_correct_id)
+
+            # 交換 remapped_id
+            self.person_df.loc[condition_1, 'person_id'] = after_correct_id
+            self.person_df.loc[condition_2, 'person_id'] = before_correct_id
+
+        # 更新畫面
+        self.update_frame()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

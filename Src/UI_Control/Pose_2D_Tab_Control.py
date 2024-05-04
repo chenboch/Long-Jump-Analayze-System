@@ -29,6 +29,7 @@ from pathlib import Path
 from tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
 from mmpose.apis import init_model as init_pose_estimator
+from mmcv.transforms import Compose
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter
 import pyqtgraph as pg
@@ -86,9 +87,10 @@ class Pose_2d_Tab_Control(QMainWindow):
 
     def init_model(self):
         self.detector = init_detector(
-        self.args.det_config, self.args.det_checkpoint)
-        self.detector.cfg = adapt_mmdet_pipeline(self.detector.cfg)
-        # self.yolo = 
+        self.args.det_config, self.args.det_checkpoint, device=self.args.device)
+        self.detector.cfg.test_dataloader.dataset.pipeline[
+        0].type = 'mmdet.LoadImageFromNDArray'
+        self.detector_test_pipeline = Compose(self.detector.cfg.test_dataloader.dataset.pipeline)
         self.pose_estimator = init_pose_estimator(
         self.args.pose_config,
         self.args.pose_checkpoint,
@@ -479,7 +481,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
         if frame_num not in self.processed_frames:
             self.timer.tic()
-            pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.pose_estimator,self.tracker)
+            pred_instances, person_ids = process_one_image(self.args,image,self.detector,self.detector_test_pipeline,self.pose_estimator,self.tracker)
             average_time = self.timer.toc()
             fps= int(1/max(average_time,0.00001))
             if fps <10:
