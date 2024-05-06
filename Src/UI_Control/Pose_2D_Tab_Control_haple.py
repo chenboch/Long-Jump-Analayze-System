@@ -17,7 +17,7 @@ import numpy as np
 from lib.cv_thread import VideoToImagesThread
 from lib.util import DataType
 from lib.timer import Timer
-from lib.vis_image import draw_set_line, draw_distance_infromation, draw_bbox
+from lib.vis_image import draw_set_line, draw_distance_infromation, draw_bbox, draw_butt_point
 from lib.vis_pose import draw_points_and_skeleton, joints_dict
 # from Graph.speed_graph import Speedgraph
 from Widget.store import Store_Widget
@@ -79,7 +79,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.Frame_View.mousePressEvent = self.mousePressEvent
         self.ui.store_data_btn.clicked.connect(self.show_store_window) 
         self.ui.load_data_btn.clicked.connect(self.load_json)
-        # self.ui.start_code_btn.clicked.connect(self.start_analyze_frame)
+        self.ui.start_code_btn.clicked.connect(self.start_runner_analyze)
         self.ui.set_length_btn.clicked.connect(self.set_length)
         self.ui.set_fps_btn.clicked.connect(self.set_frame_ratio)
         self.ui.start_analyze_btn.clicked.connect(self.start_runner_analyze)
@@ -108,17 +108,17 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.fps = 30
         self.runner_analyze = False
         self.stride_num = 6
-        self.speed_range = [0,14]
+        self.speed_range = [0,12]
         self.frame_ratio = 1/120
         self.video_images=[]
         self.video_path = ""
         self.is_threading=False
         self.video_scene = QGraphicsScene()
         self.stride_scene = QGraphicsScene()
-        self.speed_scene = QGraphicsScene()
+        self.scene = QGraphicsScene()
         self.video_scene.clear()
         self.stride_scene.clear()
-        self.speed_scene.clear()
+        self.scene.clear()
         self.correct_kpt_idx = 0
         self.video_name = ""
         self.length_ratio = 0
@@ -131,11 +131,11 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.person_data = []
         self.label_kpt = False
         self.select_id = 0
-        self.select_kpt_index = 11
+        self.floor_point = [0,0]
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         self.stride_graph =  pg.PlotWidget()
-        self.speed_graph =  pg.PlotWidget()
+        self.graph =  pg.PlotWidget()
         self.kpts_dict = joints_dict()['haple']['keypoints']
             
     def add_parser(self):
@@ -290,7 +290,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         title = ("Stride Length (Average: 0.00m)")     
         # 創建字體對象
         font = QFont()
-        font.setPixelSize(15)
+        font.setPixelSize(20)
         # 設置 y 軸標籤
         self.stride_graph.setLabel('left', 'Stride', font=font)
         # 設置 x 和 y 軸範圍
@@ -308,24 +308,34 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.stride_graph.setTitle(title)
         self.show_graph(self.stride_graph, self.stride_scene, self.ui.stride_view)
 
-    def init_speed_graph(self):
+    def init_graph(self):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
-        title = "Speed (Average: 0.00m/s)"
+        # title = "Speed (Average: 0.00m/s)"
+        stride_title = f'<span style = "color: red; font-size: 15px">Stride (Average: {0.00}m)</span>'
+        speed_title = f'<span style = "color: blue; font-size: 15px">Speed (Average: {0.00}m/s)</span>'
+        self.graph.setTitle(f'{speed_title}<br>{stride_title}')
+        
         font = QFont()
-        font.setPixelSize(15)
-        self.speed_graph.addLegend(offset=(150, 5), labelTextSize="10pt")
-        self.speed_graph.setLabel('left', 'Velocity (m/s)')
-        self.speed_graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
-        self.speed_graph.getAxis("bottom").setStyle(tickFont=font)
-        self.speed_graph.getAxis("left").setStyle(tickFont=font)
-        self.speed_graph.setXRange(0, self.total_images-1)
-        self.speed_graph.setYRange(self.speed_range[0], self.speed_range[1])
-        self.speed_graph.setWindowTitle(title)         
-        self.speed_graph.setTitle(title)
-        y_ticks = [(i, str(i)) for i in np.arange(0, 16, 2)]
-        self.speed_graph.getPlotItem().getAxis('left').setTicks([y_ticks])
-        self.show_graph(self.speed_graph, self.speed_scene, self.ui.speed_view)
+        font.setPixelSize(18)
+        self.graph.addLegend(offset=(150, 5), labelTextSize="18pt")
+        self.graph.setLabel('left', '<span style = "font-size: 18px" >Velocity (m/s)</span>', color= "blue")
+        self.graph.setLabel('bottom', f'<span style = "font-size: 18px" >Frame (fps: {self.ui.fps_input.value()})</span>')
+        self.graph.setLabel('right', '<span style = "font-size: 18px" >Length (m)</span>', color = "red")
+        self.graph.getAxis("bottom").setStyle(tickFont=font)
+        self.graph.getAxis("left").setStyle(tickFont=font)
+        self.graph.getAxis("right").setStyle(tickFont=font)
+        self.graph.setXRange(0, self.total_images-1)
+        self.graph.setYRange(self.speed_range[0], self.speed_range[1])
+        speed_y_ticks = [(i, str(i)) for i in np.arange(0, 16, 2)]
+        distance_y_ticks = [(i, str(i/4)) for i in np.arange(0, 16, 2)]
+        self.graph.getPlotItem().getAxis('left').setTicks([speed_y_ticks])
+        self.graph.getPlotItem().getAxis('left').setPen(color=QColor("blue"))
+        self.graph.getPlotItem().getAxis('left').setTextPen(color = QColor("blue"))
+        self.graph.getPlotItem().getAxis('right').setTicks([distance_y_ticks])
+        self.graph.getPlotItem().getAxis('right').setPen(color=QColor("red"))
+        self.graph.getPlotItem().getAxis('right').setTextPen(color = QColor("red"))
+        self.show_graph(self.graph, self.scene, self.ui.stride_view)
 
     def video_to_frame(self, video_images, fps, count):
         self.total_images = count
@@ -336,8 +346,8 @@ class Pose_2d_Tab_Control(QMainWindow):
         # show the first image of the video
         self.video_images=video_images
         self.show_image(self.video_images[0], self.video_scene, self.ui.Frame_View)
-        self.init_stride_graph()
-        self.init_speed_graph()
+        # self.init_stride_graph()
+        self.init_graph()
         self.ui.image_resolution_label.setText( "(0,0) -" + f" {self.video_images[0].shape[1]} x {self.video_images[0].shape[0]}")
         self.video_name = os.path.splitext(os.path.basename(self.video_path))[0]
         self.ui.video_label.setText(self.video_name)
@@ -465,6 +475,11 @@ class Pose_2d_Tab_Control(QMainWindow):
                                             points_palette_samples=10, confidence_threshold=0.3)
             if self.ui.show_bbox_checkbox.isChecked():
                 image = draw_bbox(curr_person_df, image)
+        
+        if self.select_id != 0 and self.floor_point != [0,0]:
+            frame_len = self.ui.frame_slider.value() - self.start_frame_num
+            image = draw_butt_point(self.person_df.loc[(self.person_df['person_id'] == self.select_id)]['keypoints'], 
+                            image, frame_len,self.floor_point, self.length_ratio)
             
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
@@ -486,8 +501,10 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.smooth_kpt(person_ids)
 
     def analyze_person(self,frame):
-        self.obtain_velocity(self.select_id)
-        self.obtain_distance(self.select_id)
+        v, v_t = self.obtain_velocity(self.select_id)
+        d, d_t = self.obtain_distance(self.select_id)
+        if len(v)> 0:
+            self.update_graph(d,v,d_t,v_t)
         self.import_data_to_table(self.select_id, frame)
 
     def obtain_curr_data(self):
@@ -502,13 +519,17 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.frame_slider.setValue(0)
         self.runner_analyze = True
         if not self.person_df.empty:
-            person_id = self.ui.select_id_input.value()
-            person_ids = sorted(self.person_df['person_id'].unique())
-            if person_id in person_ids:
-                self.select_id = person_id
-                QMessageBox.information(self, "ID設定", "開始分析特定ID!")
-            else:
-                QMessageBox.information(self, "ID設定", "找不到特定ID!")
+            # person_id = self.ui.select_id_input.value()
+            # person_ids = sorted(self.person_df['person_id'].unique())
+            # if person_id in person_ids:
+            #     self.select_id = person_id
+            #     QMessageBox.information(self, "ID設定", "開始分析特定ID!")
+            # else:
+            #     QMessageBox.information(self, "ID設定", "找不到特定ID!")
+            if len(self.person_df['person_id'].unique())> 0:
+                self.select_id = self.person_df['person_id'].unique()[0]
+                print(self.select_id)
+                # print(type(self.person_df['person_id'].unique()))
 
     def import_data_to_table(self, person_id, frame_num):
         # 清空表格視圖
@@ -672,6 +693,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
         try:
             # 从 JSON 文件中读取数据并转换为 DataFrame
+            self.person_df = pd.DataFrame()
             self.person_df = pd.read_json(json_path)
             process_frame_nums = sorted(self.person_df['frame_number'].unique())
             self.processed_frames = set(i for i in range(min(process_frame_nums),max(process_frame_nums))) 
@@ -683,12 +705,14 @@ class Pose_2d_Tab_Control(QMainWindow):
         print(self.frame_ratio)
         font = QFont()
         font.setPixelSize(15)
-        self.speed_graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
-        self.speed_graph.getAxis("bottom").setStyle(tickFont=font)
+        self.graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
+        self.graph.getAxis("bottom").setStyle(tickFont=font)
 
     def obtain_velocity(self,person_id):
         time_step = 30
         curr_frame_num = self.ui.frame_slider.value()
+        v = []
+        t = []
         if self.start_frame_num == 0 :
             self.start_frame_num = min(self.person_df.loc[(self.person_df['person_id'] == person_id)]['frame_number'])
         if self.start_frame_num != 0 and (curr_frame_num > self.start_frame_num or curr_frame_num == self.start_frame_num): 
@@ -698,8 +722,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             l_y_kpt_datas = []
             pos_x = []
             pos_y = []
-            v = []
-            t = []
+
             l = curr_frame_num - self.start_frame_num
             for i in range(l):
                 if len(person_kpt) > l or len(person_kpt) == l:
@@ -727,13 +750,14 @@ class Pose_2d_Tab_Control(QMainWindow):
                 t.append(temp_t)
             t = t[1:]
             v = v[1:]
-            if len(v) > 0:
-                self.update_speed_graph(t, v)
+            
                 # print(v)
+        return v,t
 
     def obtain_distance(self,person_id):
         person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
-        
+        t = []
+        d = []
         if self.start_frame_num != 0: 
             person_kpt = person_kpt.to_numpy()
             l_x_ankle_datas = []
@@ -741,7 +765,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             r_x_ankle_datas = []
             r_y_ankle_datas = []
             t_pos = []
-            d = []
+            
             l = self.ui.frame_slider.value() - self.start_frame_num
 
             for i in range(l):
@@ -753,17 +777,17 @@ class Pose_2d_Tab_Control(QMainWindow):
                     r_x_ankle_datas.append(person_kpt[i][21][0])
                     r_y_ankle_datas.append(person_kpt[i][21][1])
             # Find peaks in the left ankle y-coordinates
-            l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance=10, width=10, prominence=5)
+            l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance=70, width=10, prominence=10)
             # l_peaks = argrelextrema(np.array(l_y_ankle_datas), np.greater,order=20)
             # l_peaks = l_peaks.copy()
 
             # Find peaks in the right ankle y-coordinates
-            r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=10, width=10, prominence=5)
+            r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=70, width=10, prominence=10)
             # r_peaks = argrelextrema(np.array(r_y_ankle_datas), np.greater,order=20)
             # r_peaks = r_peaks.copy()
             # print(l_peaks)
             # print(r_peaks)
-            # if self.ui.frame_slider.value() == 100:
+            # if self.ui.frame_slider.value() == 200:
             #     x = np.array(l_y_ankle_datas)
             #     # print(x)
             #     y = np.array(r_y_ankle_datas)
@@ -784,16 +808,25 @@ class Pose_2d_Tab_Control(QMainWindow):
             if len(l_peaks) >0 and len(r_peaks) > 0:
                 if l_peaks[0] < r_peaks[0]:
                     for i in range(len(l_peaks)):
-
                         t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
-                        if i < len(r_peaks):
+                        if i < len(r_peaks):                            
                             t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[l_peaks[i]]])
+                    for i in range(len(r_peaks)):
+                        t.append(r_peaks[i]+self.start_frame_num)
+                        if i + 1 < len(l_peaks):
+                            t.append(l_peaks[i+1]+self.start_frame_num)
                 else:
                     for i in range(len(r_peaks)):
                         t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[r_peaks[i]]])
                         if i < len(l_peaks):
                             t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
-            
+                    for i in range(len(l_peaks)):
+                        t.append(l_peaks[i] + self.start_frame_num)
+                        if i + 1 < len(r_peaks):
+                            t.append(r_peaks[i+1]+ self.start_frame_num)
+            if self.floor_point == [0,0] and len(t_pos) > 0:
+                self.floor_point = t_pos[0]
+                # print(self.floor_point)
             prev_pos = np.array([]) 
             for i in range(len(t_pos)):
                 if i > 0:
@@ -805,7 +838,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                     prev_pos = np.array(t_pos[0])
 
             if len(r_peaks)>0 and len(l_peaks)>0 and len(d)>0:
-                self.update_stride_graph(d)  
+                # self.update_stride_graph(d,t)  
                 self.distance_dict = {'right ankle x': r_x_ankle_datas,
                                 'right ankle y': r_y_ankle_datas,
                                 'left ankle x': l_x_ankle_datas,
@@ -814,51 +847,63 @@ class Pose_2d_Tab_Control(QMainWindow):
                                 'r_peaks': r_peaks,
                                 't_pos': t_pos,
                                 'd': d}
-            else:
-                self.distance_dict = {}
+            # else:
+            #     self.distance_dict = {}
+            return d,t
             
-    def update_stride_graph(self, d):
+    def update_graph(self, d, v, d_t , v_t):
         # 計算平均值
-        self.stride_graph.clear()
-        mean = np.round(np.mean(d), 2)
-        title = f'Stride Length (Average: {np.round(mean,2)}m)'  
-        self.stride_graph.setTitle(title)   
+        # print(d_t)
+        self.graph.clear()
+        
+        minx = min(v_t)
+        stride_title = f'<font color = "red">Stride Length (Average: {0.00}m)</font>'
+        if len(d)> 0:
+            minx = min(min(v_t),min(d_t))
+            mean_stride = np.round(np.mean(d), 2)
+            stride_title = f'<font color = "red">Stride (Average: {mean_stride}m)</font>'
+        self.graph.setXRange(minx, min(v_t)+200)
+        mean_speed = np.round(np.mean(v[:max(v_t)]), 2)
+        speed_title = f'<font color="blue">   Speed (Average: {mean_speed}m/s)</font>'
+
+        self.graph.setTitle(f"{speed_title}<br>{stride_title}")
         # # 創建字體對象
-        font = QFont()
-        font.setPixelSize(15)
-        y = [(i + 1) for i in range(len(d))]
+
         # 添加條形圖
-        md = [2*x for x in d]
-        barItem = pg.BarGraphItem(x=0, y=y, height=0.3, width=md, brush='r')
-        # print(d)
-        self.stride_graph.addItem(barItem)
-        # 添加每個值方的標籤
-        for i, val in enumerate(d):
+        md = [8*i for i in d]
+        # 設置步幅 x 軸刻度
+        barItem = pg.BarGraphItem(x=d_t, y=0, height=md, width=2, brush='r')
+        # # print(d)
+        self.graph.addItem(barItem)
+        # # 添加每個值方的標籤
+        for i, val in zip(d_t, d):
             formatted_val = "{:.2f} m".format(np.round(val,2))
-            label = pg.TextItem(text=formatted_val, anchor=(0.5, 0.5), color=(0, 0, 0))
-            label.setPos(3, i + 1)
-            self.stride_graph.addItem(label)
-            
-    def update_speed_graph(self, t,v):
-        self.speed_graph.clear()
-        mean = np.round(np.mean(v[:max(t)]), 2)
-        title = f"Speed (Average: {mean}m/s)"
-        font = QFont() 
-        font.setPixelSize(15)
-        self.speed_graph.setXRange(min(t), min(t)+200)
-        self.speed_graph.setWindowTitle(title)         
-        self.speed_graph.setTitle(title)
-        self.speed_graph.plot(t, v, pen='r')    
+            label = pg.TextItem(text=formatted_val, anchor=(0.5, 0.5), color=(255, 0, 0))
+            label.setPos(i, 12)
+            self.graph.addItem(label)
+        # y = [(i + 1) for i in range(len(d))]
+        #speed
+        self.graph.plot(v_t, v, pen='b')    
         # 設置 x 軸刻度
-        x_ticks = [(i, str(i)) for i in np.arange(min(t), min(t)+200, 30)]
-        self.speed_graph.getPlotItem().getAxis('bottom').setTicks([x_ticks])
-        for i, val in zip(t, v):
+       # 生成速度圖表的 x 軸刻度
+        speed_x_ticks = [(i, str(i)) for i in np.arange(min(v_t), min(v_t) + 200, 30)]
+
+        # 將步幅圖表的 x 軸刻度添加到速度圖表的 x 軸刻度中
+        for i in d_t:
+            speed_x_ticks.append((i, " "))
+
+        # 將刻度按照數值排序
+        speed_x_ticks = sorted(speed_x_ticks)
+        # 設置速度圖表的 x 軸刻度
+        self.graph.getPlotItem().getAxis('bottom').setTicks([speed_x_ticks])
+
+        for i, val in zip(v_t, v):
             formatted_val = str(np.round(val,2))
             text = f"{formatted_val} m/s"
-            label = pg.TextItem(text = text, anchor=(0.5, 0.5), color=(0, 0, 0))
+            label = pg.TextItem(text = text, anchor=(0.5, 0.5), color=(0, 0, 255))
             label.setPos(i, val+1)
-            self.speed_graph.addItem(label)
-
+            self.graph.addItem(label)
+       
     def correct_person_id(self):
         # 檢查人員DataFrame是否為空
         if self.person_df.empty:

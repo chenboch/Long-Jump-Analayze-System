@@ -1,40 +1,33 @@
-from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
-import numpy as np
+import sys
 import pyqtgraph as pg
+from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import QApplication
 
-class YourClass:
-    def __init__(self):
-        # 在介面初始化函式中初始化柱狀圖顯示
-        self.init_histogram_graph()
+def main():
+    # 建立應用程式
+    app = QApplication(sys.argv)
+    
+    # 創建一個 PlotWidget
+    plot_widget = pg.plot(title="PyQtGraph Example")
+    
+    # 生成一些示範資料
+    x = [1, 2, 3, 4, 5]
+    y = [1, 4, 9, 16, 25]
+    
+    # 添加資料到 PlotWidget
+    plot_widget.plot(x, y, pen='r')  # 紅色線條
+    
+    # 取得 X 軸物件
+    x_axis = plot_widget.getAxis('bottom')
+    
+    # 設定 X 軸標籤顏色
+    x_axis.setLabel('Custom X Label', color=QColor(0, 0, 255))
+    
+    # 顯示視窗
+    plot_widget.show()
+    
+    # 執行應用程式
+    sys.exit(app.exec_())
 
-    def init_histogram_graph(self):
-        # 創建 PlotWidget
-        self.histogram_plt = pg.PlotWidget()
-        # 設置大小
-        self.histogram_plt.resize(self.ui.x_figure_view.width(), self.ui.x_figure_view.height())
-        title = "Stride Length (Average: 0.00m)"
-        font = QFont()
-        font.setPixelSize(15)
-        # 設置 y 軸標籤
-        self.histogram_plt.setLabel('left', 'Stride', font=font)
-        # 設置 x 和 y 軸範圍
-        self.histogram_plt.setXRange(0, 3)
-        self.histogram_plt.setYRange(0, 6)
-        # 設置 y 軸刻度
-        y_ticks = [(i + 1, str(i + 1)) for i in range(7)]
-        self.histogram_plt.getPlotItem().getAxis('left').setTicks([y_ticks])
-        # 設置 x 軸刻度
-        x_ticks = [(i, str(i)) for i in np.arange(0, 3.5, 0.5)]
-        self.histogram_plt.getPlotItem().getAxis('bottom').setTicks([x_ticks])
-        # 設置 x 軸和 y 軸標籤
-        self.histogram_plt.setLabel('bottom', 'm', font=font)
-        self.histogram_plt.setWindowTitle(title)
-        self.histogram_plt.setTitle(title)
-        # 將 PlotWidget 添加到 QGraphicsScene 中
-        self.histogram_scene.addWidget(self.histogram_plt)
-        # 將 QGraphicsScene 設置為 QGraphicsView 的場景
-        self.ui.x_figure_view.setScene(self.histogram_scene)
-        # 自動調整視圖以適應場景大小
-        self.ui.x_figure_view.fitInView(self.histogram_scene.sceneRect(), Qt.KeepAspectRatio)
+if __name__ == '__main__':
+    main()
