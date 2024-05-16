@@ -312,24 +312,14 @@
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_9">
                 <item>
-                 <widget class="QLabel" name="stride_num_label">
+                 <widget class="QLabel" name="butt_width_label">
                   <property name="text">
-                   <string>最大步數 (步):</string>
+                   <string>髖與腳跟的距離 (cm):</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QSpinBox" name="stride_num_input">
-                  <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                  </property>
-                  <property name="value">
-                   <number>6</number>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="set_stride_num_btn">
+                 <widget class="QPushButton" name="display_butt_width_btn">
                   <property name="maximumSize">
                    <size>
                     <width>100</width>
@@ -337,7 +327,7 @@
                    </size>
                   </property>
                   <property name="text">
-                   <string>設定步數</string>
+                   <string>顯示距離</string>
                   </property>
                  </widget>
                 </item>

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import *
 # from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtGui import QPainter, QPen, QColor, QImage, QPixmap, QFont
-from scipy.signal import find_peaks , argrelextrema
+from scipy.signal import find_peaks, savgol_filter
 from PyQt5.QtCore import Qt, QPointF
 import numpy as np
 import sys
@@ -17,7 +17,7 @@ import numpy as np
 from lib.cv_thread import VideoToImagesThread
 from lib.util import DataType
 from lib.timer import Timer
-from lib.vis_image import draw_set_line, draw_distance_infromation, draw_bbox, draw_butt_point
+from lib.vis_image import draw_set_line, draw_distance_infromation, draw_bbox, draw_butt_point,draw_butt_width
 from lib.vis_pose import draw_points_and_skeleton, joints_dict
 # from Graph.speed_graph import Speedgraph
 from Widget.store import Store_Widget
@@ -72,7 +72,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             lambda: self.ui.frame_slider.setValue(self.ui.frame_slider.value() + 1)
         )
         self.ui.frame_slider.valueChanged.connect(self.analyze_frame)
-        self.ui.correct_btn.clicked.connect(self.update_person_df)
+        self.ui.correct_btn.clicked.connect(self.switch_kpt_data)
         self.ui.show_skeleton_checkBox.setChecked(True)
         self.ui.show_bbox_checkbox.setChecked(True)
         self.ui.keypoint_table.cellActivated.connect(self.on_cell_clicked)
@@ -84,6 +84,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.ui.set_fps_btn.clicked.connect(self.set_frame_ratio)
         self.ui.start_analyze_btn.clicked.connect(self.start_runner_analyze)
         self.ui.id_correct_btn.clicked.connect(self.correct_person_id)
+        self.ui.display_butt_width_btn.clicked.connect(self.dispaly_butt_width)
 
     def init_model(self):
         self.detector = init_detector(
@@ -107,7 +108,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.processed_images=-1
         self.fps = 30
         self.runner_analyze = False
-        self.stride_num = 6
         self.speed_range = [0,12]
         self.frame_ratio = 1/120
         self.video_images=[]
@@ -131,6 +131,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.person_data = []
         self.label_kpt = False
         self.select_id = 0
+        self.select_frame = 0
         self.floor_point = [0,0]
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
@@ -286,42 +287,20 @@ class Pose_2d_Tab_Control(QMainWindow):
         graphicview.setScene(scene)
         graphicview.fitInView(scene.sceneRect(), Qt.KeepAspectRatio)
 
-    def init_stride_graph(self):
-        title = ("Stride Length (Average: 0.00m)")     
-        # 創建字體對象
-        font = QFont()
-        font.setPixelSize(20)
-        # 設置 y 軸標籤
-        self.stride_graph.setLabel('left', 'Stride', font=font)
-        # 設置 x 和 y 軸範圍
-        self.stride_graph.setXRange(0, 3)
-        self.stride_graph.setYRange(0, self.stride_num)
-        # 設置 y 軸刻度
-        y_ticks = [(i+1, str(i+1)) for i in np.arange(0, self.stride_num, 1)]
-        self.stride_graph.getPlotItem().getAxis('left').setTicks([y_ticks])
-        # 設置 x 軸刻度
-        x_ticks = [(i, str(i)) for i in np.arange(0, 3.5, 0.5)]
-        self.stride_graph.getPlotItem().getAxis('bottom').setTicks([x_ticks])
-        # 設置 x 軸和 y 軸標籤
-        self.stride_graph.setLabel('bottom', 'm', font=font)
-        self.stride_graph.setWindowTitle(title)
-        self.stride_graph.setTitle(title)
-        self.show_graph(self.stride_graph, self.stride_scene, self.ui.stride_view)
-
     def init_graph(self):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         # title = "Speed (Average: 0.00m/s)"
-        stride_title = f'<span style = "color: red; font-size: 15px">Stride (Average: {0.00}m)</span>'
-        speed_title = f'<span style = "color: blue; font-size: 15px">Speed (Average: {0.00}m/s)</span>'
+        stride_title = f'<span style = "color: red; font-size: 15px">步幅 (平均長度: {0.00}m)</span>'
+        speed_title = f'<span style = "color: blue; font-size: 15px">速度 (平均速率: {0.00}m/sec)</span>'
         self.graph.setTitle(f'{speed_title}<br>{stride_title}')
         
         font = QFont()
         font.setPixelSize(18)
         self.graph.addLegend(offset=(150, 5), labelTextSize="18pt")
-        self.graph.setLabel('left', '<span style = "font-size: 18px" >Velocity (m/s)</span>', color= "blue")
-        self.graph.setLabel('bottom', f'<span style = "font-size: 18px" >Frame (fps: {self.ui.fps_input.value()})</span>')
-        self.graph.setLabel('right', '<span style = "font-size: 18px" >Length (m)</span>', color = "red")
+        self.graph.setLabel('left', '<span style = "font-size: 18px" >速率 (m/sec)</span>', color= "blue")
+        self.graph.setLabel('bottom', f'<span style = "font-size: 18px" >幀 (fps: {self.ui.fps_input.value()})</span>')
+        self.graph.setLabel('right', '<span style = "font-size: 18px" >長度 (m)</span>', color = "red")
         self.graph.getAxis("bottom").setStyle(tickFont=font)
         self.graph.getAxis("left").setStyle(tickFont=font)
         self.graph.getAxis("right").setStyle(tickFont=font)
@@ -427,6 +406,29 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.person_df.loc[(self.person_df['frame_number'] == frame_num) &
                                 (self.person_df['person_id'] == person_id), 'keypoints'].iloc[0][kpt_idx][:2] = [kpt_x, kpt_y]
         
+        self.update_frame()
+
+    def switch_kpt_data(self):
+        right_leg_id = [12,14,16,21,23,25]
+        left_leg_id = [11,13,15,20,22,24]
+        curr_frame_num = self.ui.frame_slider.value()
+        person_data = self.person_df.loc[(self.person_df['frame_number'] == curr_frame_num) &
+                                (self.person_df['person_id'] == self.select_id)]
+        if not person_data.empty :
+            person_kpt = person_data.iloc[0]['keypoints']
+            correct_kpt = []
+            for i in range(len(person_kpt)): 
+                kptx , kpty, conf, label = person_kpt[i][0], person_kpt[i][1], person_kpt[i][2], person_kpt[i][3]
+                if i in left_leg_id:
+                    temp_kptx , temp_kpt_y , temp_kpt_conf, temp_kpt_label = person_kpt[i+1][0], person_kpt[i+1][1], person_kpt[i+1][2], person_kpt[i+1][3]  
+                    correct_kpt.append([temp_kptx , temp_kpt_y , temp_kpt_conf, temp_kpt_label])
+                    correct_kpt.append([kptx,kpty,conf,label])            
+                if i not in left_leg_id and i not in right_leg_id:
+                    correct_kpt.append([kptx, kpty, conf, label])  # 设置可信度为默认值
+            # 更新 DataFrame 中的数据
+
+            self.person_df.at[person_data.index[0], 'keypoints'] = correct_kpt
+
             self.update_frame()
 
     def analyze_frame(self):
@@ -465,22 +467,25 @@ class Pose_2d_Tab_Control(QMainWindow):
         
         image =  draw_set_line(image, self.line_pos)
 
-        if len(self.distance_dict) != 0:
-            image = draw_distance_infromation(image,self.distance_dict,self.length_ratio)
+        # if len(self.distance_dict) != 0:
+        #     image = draw_distance_infromation(image,self.distance_dict,self.length_ratio)
         # if self.ui.show_skeleton_checkBox.isChecked():
         if not curr_person_df.empty :
             #haple
-            image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
-                                            points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
-                                            points_palette_samples=10, confidence_threshold=0.3)
+            if self.ui.show_skeleton_checkBox.isChecked():
+                image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
+                                                points_color_palette='gist_rainbow', skeleton_palette_samples='jet',
+                                                points_palette_samples=10, confidence_threshold=0.3)
             if self.ui.show_bbox_checkbox.isChecked():
                 image = draw_bbox(curr_person_df, image)
         
-        if self.select_id != 0 and self.floor_point != [0,0]:
-            frame_len = self.ui.frame_slider.value() - self.start_frame_num
-            image = draw_butt_point(self.person_df.loc[(self.person_df['person_id'] == self.select_id)]['keypoints'], 
-                            image, frame_len,self.floor_point, self.length_ratio)
-            
+        # if self.select_id != 0 and self.floor_point != [0,0]:
+        #     frame_len = self.ui.frame_slider.value() - self.start_frame_num
+        #     image = draw_butt_point(self.person_df.loc[(self.person_df['person_id'] == self.select_id)]['keypoints'], 
+        #                     image, frame_len,self.floor_point, self.length_ratio)
+        # if self.select_frame != 0:
+        #     image = draw_butt_width(image,self.person_df.loc[(self.person_df['person_id'] == self.select_id)]['keypoints'],
+        #                             self.select_frame, self.length_ratio)
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
 
@@ -501,11 +506,14 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.smooth_kpt(person_ids)
 
     def analyze_person(self,frame):
-        v, v_t = self.obtain_velocity(self.select_id)
-        d, d_t = self.obtain_distance(self.select_id)
-        if len(v)> 0:
-            self.update_graph(d,v,d_t,v_t)
-        self.import_data_to_table(self.select_id, frame)
+        if self.select_id != 0:
+            v, v_t = self.obtain_velocity(self.select_id)
+            d, d_t = self.obtain_distance(self.select_id)
+            # print(d)
+            # print(d_t)
+            if len(v)> 0:
+                self.update_graph(d,v,d_t,v_t)
+            self.import_data_to_table(self.select_id, frame)
 
     def obtain_curr_data(self):
         curr_person_df = pd.DataFrame()
@@ -528,7 +536,7 @@ class Pose_2d_Tab_Control(QMainWindow):
             #     QMessageBox.information(self, "ID設定", "找不到特定ID!")
             if len(self.person_df['person_id'].unique())> 0:
                 self.select_id = self.person_df['person_id'].unique()[0]
-                print(self.select_id)
+                # print(self.select_id)
                 # print(type(self.person_df['person_id'].unique()))
 
     def import_data_to_table(self, person_id, frame_num):
@@ -539,7 +547,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         person_data = self.person_df.loc[(self.person_df['frame_number'] == frame_num) & (self.person_df['person_id'] == person_id)]
 
         if person_data.empty:
-            print("未找到特定人員在特定幀的數據")
+            # print("未找到特定人員在特定幀的數據")
             self.clear_table_view()
             return
 
@@ -713,8 +721,10 @@ class Pose_2d_Tab_Control(QMainWindow):
         curr_frame_num = self.ui.frame_slider.value()
         v = []
         t = []
+        # print(self.start_frame_num)
         if self.start_frame_num == 0 :
-            self.start_frame_num = min(self.person_df.loc[(self.person_df['person_id'] == person_id)]['frame_number'])
+            # self.start_frame_num = min(self.person_df.loc[(self.person_df['person_id'] == person_id)]['frame_number']) + 1
+            self.start_frame_num = 12
         if self.start_frame_num != 0 and (curr_frame_num > self.start_frame_num or curr_frame_num == self.start_frame_num): 
             person_kpt = self.person_df.loc[(self.person_df['person_id'] == person_id)]['keypoints']
             person_kpt = person_kpt.to_numpy()
@@ -765,6 +775,8 @@ class Pose_2d_Tab_Control(QMainWindow):
             r_x_ankle_datas = []
             r_y_ankle_datas = []
             t_pos = []
+            l_peaks = []
+            r_peaks = []
             
             l = self.ui.frame_slider.value() - self.start_frame_num
 
@@ -772,37 +784,42 @@ class Pose_2d_Tab_Control(QMainWindow):
                 if (len(person_kpt) > l or len(person_kpt) == l):
                     # 20: "左大腳趾"
                     # 21: "右大腳趾"
-                    l_x_ankle_datas.append(person_kpt[i][20][0])
-                    l_y_ankle_datas.append(person_kpt[i][20][1])
-                    r_x_ankle_datas.append(person_kpt[i][21][0])
-                    r_y_ankle_datas.append(person_kpt[i][21][1])
+                    if person_kpt[i][20][0] > self.line_pos[0] or person_kpt[i][20][0] > self.line_pos[2]:
+                        l_x_ankle_datas.append(person_kpt[i][20][0])
+                        l_y_ankle_datas.append(person_kpt[i][20][1])
+                        r_x_ankle_datas.append(person_kpt[i][21][0])
+                        r_y_ankle_datas.append(person_kpt[i][21][1])
             # Find peaks in the left ankle y-coordinates
-            l_peaks, _ = find_peaks(np.array(l_y_ankle_datas),distance=70, width=10, prominence=10)
-            # l_peaks = argrelextrema(np.array(l_y_ankle_datas), np.greater,order=20)
-            # l_peaks = l_peaks.copy()
-
-            # Find peaks in the right ankle y-coordinates
-            r_peaks, _ = find_peaks(np.array(r_y_ankle_datas),distance=70, width=10, prominence=10)
-            # r_peaks = argrelextrema(np.array(r_y_ankle_datas), np.greater,order=20)
-            # r_peaks = r_peaks.copy()
+            
+            if len(l_y_ankle_datas) > 11 and len(r_y_ankle_datas) > 11:
+                # 对左脚踝数据进行平滑处理
+                # smoothed_l_y_ankle_datas = savgol_filter(np.array(l_y_ankle_datas), window_length=11, polyorder=3)
+                # 对右脚踝数据进行平滑处理
+                # smoothed_r_y_ankle_datas = savgol_filter(np.array(r_y_ankle_datas), window_length=11, polyorder=3)
+                smoothed_l_y_ankle_datas = l_y_ankle_datas
+                smoothed_r_y_ankle_datas = r_y_ankle_datas
+                l_peaks, _ = find_peaks(np.array(smoothed_l_y_ankle_datas),distance=70, width=8, prominence=5)
+                # Find peaks in the right ankle y-coordinates
+                r_peaks, _ = find_peaks(np.array(smoothed_r_y_ankle_datas),distance=70, width=8, prominence=5)
+          
             # print(l_peaks)
-            # print(r_peaks)
-            # if self.ui.frame_slider.value() == 200:
-            #     x = np.array(l_y_ankle_datas)
-            #     # print(x)
-            #     y = np.array(r_y_ankle_datas)
-            #     plt.plot(x)
-            #     plt.plot(l_peaks, x[np.array(l_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
-            #     plt.plot(np.zeros_like(x), "--", color="green")
-            #     plt.plot(y)
-            #     plt.plot(r_peaks, y[np.array(r_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
-            #     plt.plot(np.zeros_like(y), "--", color="green")
-            #     plt.show()
-            # if len(l_peaks)>0 and len(r_peaks)>0 :
-            #     if l_peaks[0] < r_peaks[0]:
-            #         l_peaks = l_peaks[1:]
-            #     else:
-            #         r_peaks = r_peaks[1:]
+            # # print(r_peaks)
+            if self.ui.frame_slider.value() == 200:
+                x = np.array(smoothed_l_y_ankle_datas)
+                # print(x)
+                y = np.array(smoothed_r_y_ankle_datas)
+                plt.plot(x)
+                plt.plot(l_peaks, x[np.array(l_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
+                plt.plot(np.zeros_like(x), "--", color="green")
+                plt.plot(y)
+                plt.plot(r_peaks, y[np.array(r_peaks)], "*") # peak为横坐标，value[peak]为对应纵坐标
+                plt.plot(np.zeros_like(y), "--", color="red")
+                plt.show()
+            if len(l_peaks)>0 and len(r_peaks)>0 :
+                if l_peaks[0] < r_peaks[0]:
+                    l_peaks = l_peaks[1:]
+                else:
+                    r_peaks = r_peaks[1:]
 
 
             if len(l_peaks) >0 and len(r_peaks) > 0:
@@ -810,7 +827,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                     for i in range(len(l_peaks)):
                         t_pos.append([l_x_ankle_datas[l_peaks[i]], l_y_ankle_datas[l_peaks[i]]])
                         if i < len(r_peaks):                            
-                            t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[l_peaks[i]]])
+                            t_pos.append([r_x_ankle_datas[r_peaks[i]], r_y_ankle_datas[r_peaks[i]]])
                     for i in range(len(r_peaks)):
                         t.append(r_peaks[i]+self.start_frame_num)
                         if i + 1 < len(l_peaks):
@@ -849,7 +866,7 @@ class Pose_2d_Tab_Control(QMainWindow):
                                 'd': d}
             # else:
             #     self.distance_dict = {}
-            return d,t
+        return d,t
             
     def update_graph(self, d, v, d_t , v_t):
         # 計算平均值
@@ -857,14 +874,14 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.graph.clear()
         
         minx = min(v_t)
-        stride_title = f'<font color = "red">Stride Length (Average: {0.00}m)</font>'
+        stride_title = f'<font color = "red">步幅 (平均長度: {0.00}m)</font>'
         if len(d)> 0:
             minx = min(min(v_t),min(d_t))
             mean_stride = np.round(np.mean(d), 2)
-            stride_title = f'<font color = "red">Stride (Average: {mean_stride}m)</font>'
-        self.graph.setXRange(minx, min(v_t)+200)
+            stride_title = f'<font color = "red">步幅 (平均長度: {mean_stride}m)</font>'
+        self.graph.setXRange(minx, min(v_t)+150)
         mean_speed = np.round(np.mean(v[:max(v_t)]), 2)
-        speed_title = f'<font color="blue">   Speed (Average: {mean_speed}m/s)</font>'
+        speed_title = f'<font color="blue">速度 (平均速率: {mean_speed}m/sec)</font>'
 
         self.graph.setTitle(f"{speed_title}<br>{stride_title}")
         # # 創建字體對象
@@ -899,7 +916,7 @@ class Pose_2d_Tab_Control(QMainWindow):
 
         for i, val in zip(v_t, v):
             formatted_val = str(np.round(val,2))
-            text = f"{formatted_val} m/s"
+            text = f"{formatted_val} m/sec"
             label = pg.TextItem(text = text, anchor=(0.5, 0.5), color=(0, 0, 255))
             label.setPos(i, val+1)
             self.graph.addItem(label)
@@ -932,6 +949,10 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.person_df.loc[condition_2, 'person_id'] = before_correct_id
 
         # 更新畫面
+        self.update_frame()
+
+    def dispaly_butt_width(self):
+        self.select_frame = self.ui.frame_slider.value() - self.start_frame_num
         self.update_frame()
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'Ui.ui'
+# Form implementation generated from reading ui file 'UI.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -71,6 +71,8 @@ class Ui_MainWindow(object):
         self.play_btn.setMaximumSize(QtCore.QSize(50, 30))
         font = QtGui.QFont()
         font.setPointSize(20)
+        font.setBold(True)
+        font.setWeight(75)
         self.play_btn.setFont(font)
         self.play_btn.setLayoutDirection(QtCore.Qt.RightToLeft)
         self.play_btn.setIconSize(QtCore.QSize(20, 20))
@@ -144,18 +146,13 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.horizontalLayout_9 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_9.setObjectName("horizontalLayout_9")
-        self.stride_num_label = QtWidgets.QLabel(self.stride_groupbox)
-        self.stride_num_label.setObjectName("stride_num_label")
-        self.horizontalLayout_9.addWidget(self.stride_num_label)
-        self.stride_num_input = QtWidgets.QSpinBox(self.stride_groupbox)
-        self.stride_num_input.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
-        self.stride_num_input.setProperty("value", 6)
-        self.stride_num_input.setObjectName("stride_num_input")
-        self.horizontalLayout_9.addWidget(self.stride_num_input)
-        self.set_stride_num_btn = QtWidgets.QPushButton(self.stride_groupbox)
-        self.set_stride_num_btn.setMaximumSize(QtCore.QSize(100, 16777215))
-        self.set_stride_num_btn.setObjectName("set_stride_num_btn")
-        self.horizontalLayout_9.addWidget(self.set_stride_num_btn)
+        self.butt_width_label = QtWidgets.QLabel(self.stride_groupbox)
+        self.butt_width_label.setObjectName("butt_width_label")
+        self.horizontalLayout_9.addWidget(self.butt_width_label)
+        self.display_butt_width_btn = QtWidgets.QPushButton(self.stride_groupbox)
+        self.display_butt_width_btn.setMaximumSize(QtCore.QSize(100, 16777215))
+        self.display_butt_width_btn.setObjectName("display_butt_width_btn")
+        self.horizontalLayout_9.addWidget(self.display_butt_width_btn)
         self.verticalLayout_3.addLayout(self.horizontalLayout_9)
         self.horizontalLayout_8 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_8.setObjectName("horizontalLayout_8")
@@ -378,8 +375,8 @@ class Ui_MainWindow(object):
         self.store_data_btn.setText(_translate("MainWindow", "儲存資料"))
         self.start_code_btn.setText(_translate("MainWindow", "開始分析"))
         self.stride_groupbox.setTitle(_translate("MainWindow", "手動步幅設定"))
-        self.stride_num_label.setText(_translate("MainWindow", "最大步數 (步):"))
-        self.set_stride_num_btn.setText(_translate("MainWindow", "設定步數"))
+        self.butt_width_label.setText(_translate("MainWindow", "髖與腳跟的距離 (cm):"))
+        self.display_butt_width_btn.setText(_translate("MainWindow", "顯示距離"))
         self.length_label.setText(_translate("MainWindow", "設定長度 (cm): "))
         self.set_length_btn.setText(_translate("MainWindow", "設定長度"))
         self.speed_groupbox.setTitle(_translate("MainWindow", "手動速度設定"))
