@@ -310,11 +310,21 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
+               <widget class="QCheckBox" name="show_length_information_checkBox">
+                <property name="text">
+                 <string>顯示長度資訊</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
                <layout class="QHBoxLayout" name="horizontalLayout_9">
                 <item>
                  <widget class="QLabel" name="butt_width_label">
                   <property name="text">
-                   <string>髖與腳跟的距離 (cm):</string>
+                   <string>髖與腳跟的長度 (cm):</string>
                   </property>
                  </widget>
                 </item>
@@ -382,6 +392,16 @@
               <string>手動速度設定</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_5">
+              <item>
+               <widget class="QCheckBox" name="show_speed_information_checkBox">
+                <property name="text">
+                 <string>顯示速度資訊</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_10">
                 <item>
@@ -486,7 +506,7 @@
                    </size>
                   </property>
                   <property name="text">
-                   <string>顯示範圍(frame): </string>
+                   <string>起跳範圍(frame): </string>
                   </property>
                  </widget>
                 </item>
@@ -530,7 +550,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="set_frame_range_btn">
+                 <widget class="QPushButton" name="display_speed_btn">
                   <property name="minimumSize">
                    <size>
                     <width>100</width>
@@ -544,7 +564,7 @@
                    </size>
                   </property>
                   <property name="text">
-                   <string>設定範圍</string>
+                   <string>顯示速度</string>
                   </property>
                  </widget>
                 </item>
@@ -748,6 +768,9 @@
                  <widget class="QCheckBox" name="show_skeleton_checkBox">
                   <property name="text">
                    <string>Show Skeleton</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
                   </property>
                  </widget>
                 </item>
