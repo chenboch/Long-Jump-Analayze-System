@@ -73,8 +73,6 @@ class Pose_2d_Tab_Control(QMainWindow):
         )
         self.ui.frame_slider.valueChanged.connect(self.analyze_frame)
         self.ui.correct_btn.clicked.connect(self.switch_kpt_data)
-        self.ui.show_skeleton_checkBox.setChecked(True)
-        self.ui.show_bbox_checkbox.setChecked(True)
         self.ui.keypoint_table.cellActivated.connect(self.on_cell_clicked)
         self.ui.Frame_View.mousePressEvent = self.mousePressEvent
         self.ui.store_data_btn.clicked.connect(self.show_store_window) 
@@ -137,7 +135,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         pg.setConfigOption('foreground', 'k')
         self.graph =  pg.PlotWidget()
         self.kpts_dict = joints_dict()['haple']['keypoints']
-        self.jump_frame = [0,0]
+        self.jump_frame = [0,0,0]
             
     def add_parser(self):
         self.parser = ArgumentParser()
@@ -430,14 +428,13 @@ class Pose_2d_Tab_Control(QMainWindow):
         
         image =  draw_set_line(image, self.line_pos)
         if len(self.analyze_information) > 0:
-            show_length = self.ui.show_length_information_checkBox.isChecked()
-            show_speed = self.ui.show_speed_information_checkBox.isChecked()
-            jump_frame = [self.jump_frame[0]- self.start_frame_num, self.jump_frame[1]-self.start_frame_num]
-            show_jump_speed = True if self.ui.frame_slider.value() > self.jump_frame[1] and self.jump_frame != [0,0] else False
-            image = draw_analyze_infromation(image,self.analyze_information, jump_frame, show_length
-                                            ,show_speed, show_jump_speed, self.length_ratio)
+            jump_frame = [self.jump_frame[0]- self.start_frame_num, self.jump_frame[1]-self.start_frame_num, self.jump_frame[2] - self.start_frame_num]
+           
+            show_jump_speed = True  if self.ui.frame_slider.value() > self.jump_frame[1] and self.jump_frame[0:2] != [0,0] else False
+            image = draw_analyze_infromation(image,self.analyze_information, jump_frame,
+                                              show_jump_speed, self.length_ratio)
         
-        if not curr_person_df.empty :
+        if not curr_person_df.empty and frame_num in self.processed_frames:
             #haple
             if self.ui.show_skeleton_checkBox.isChecked():
                 image = draw_points_and_skeleton(image, curr_person_df, joints_dict()['haple']['skeleton_links'], 
@@ -449,8 +446,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         if self.select_frame != 0:
             image = draw_butt_width(image,self.person_df.loc[(self.person_df['person_id'] == self.select_id)]['keypoints'],
                                     self.select_frame, self.length_ratio)
-            self.ui.jump_frame_start.setValue(self.select_frame + self.start_frame_num)
-       
+            self.ui.toe_land_frame.setValue(self.select_frame + self.start_frame_num)
         # 将原始图像直接显示在 QGraphicsView 中
         self.show_image(image, self.video_scene, self.ui.Frame_View)
 
@@ -476,8 +472,13 @@ class Pose_2d_Tab_Control(QMainWindow):
             person_kpt = self.obtain_person_kpt()
             self.import_data_to_table(self.select_id, frame)
         if frame > self.start_frame_num:
-            self.analyze_information = obtain_analyze_information(person_kpt, frame,self.start_frame_num,
-                                                                  self.length_ratio,self.frame_ratio, self.jump_frame) 
+            self.analyze_information, self.jump_frame[2] = obtain_analyze_information(person_kpt, frame,self.start_frame_num,
+                                                                  self.length_ratio,self.frame_ratio, self.jump_frame,
+                                                                  self.line_pos) 
+            print(self.analyze_information)
+            if self.jump_frame[2] > 0:
+                print(self.analyze_information)
+
             self.graph = update_graph(self.graph,self.analyze_information)
 
     def obtain_curr_data(self):
@@ -501,6 +502,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         if not self.person_df.empty:
             if len(self.person_df['person_id'].unique())> 0:
                 self.select_id = self.person_df['person_id'].unique()[0]
+                self.smooth_kpt([self.select_id])
                 print(self.select_id)
 
     def import_data_to_table(self, person_id, frame_num):
@@ -667,10 +669,10 @@ class Pose_2d_Tab_Control(QMainWindow):
             # 从 JSON 文件中读取数据并转换为 DataFrame
             self.person_df = pd.DataFrame()
             self.person_df = pd.read_json(json_path)
-            process_frame_nums = sorted(self.person_df['frame_number'].unique())
-            self.processed_frames = set(i for i in range(min(process_frame_nums),max(process_frame_nums))) 
-            self.start_frame_num = min(process_frame_nums) - 1
-            
+            process_frame_nums = self.person_df['frame_number'].unique()
+            self.processed_frames = sorted(set(frame_num for frame_num in process_frame_nums if frame_num!=0) )
+            self.start_frame_num = min(self.processed_frames) - 1
+            # print(self.start_frame_num)
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
@@ -717,10 +719,8 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.update_frame()
 
     def set_jump_frame(self):
-        self.jump_frame = [self.ui.jump_frame_start.value() , self.ui.jump_frame_end.value()]
-        # print(self.jump_frame)
-        # exit()
-        self.ui.frame_slider.setValue(self.ui.jump_frame_start.value())
+        self.jump_frame = [self.ui.toe_land_frame.value() , self.ui.toe_off_frame.value(), 0]
+        self.ui.frame_slider.setValue(self.ui.toe_land_frame.value())
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

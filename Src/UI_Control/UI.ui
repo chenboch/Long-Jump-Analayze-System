@@ -310,16 +310,6 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
-               <widget class="QCheckBox" name="show_length_information_checkBox">
-                <property name="text">
-                 <string>顯示長度資訊</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
                <layout class="QHBoxLayout" name="horizontalLayout_9">
                 <item>
                  <widget class="QLabel" name="butt_width_label">
@@ -392,16 +382,6 @@
               <string>手動速度設定</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_5">
-              <item>
-               <widget class="QCheckBox" name="show_speed_information_checkBox">
-                <property name="text">
-                 <string>顯示速度資訊</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_10">
                 <item>
@@ -511,7 +491,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QSpinBox" name="jump_frame_start">
+                 <widget class="QSpinBox" name="toe_land_frame">
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                   </property>
@@ -546,7 +526,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QSpinBox" name="jump_frame_end">
+                 <widget class="QSpinBox" name="toe_off_frame">
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                   </property>
@@ -784,6 +764,12 @@
                  <widget class="QCheckBox" name="show_bbox_checkbox">
                   <property name="text">
                    <string>Show BBox</string>
+                  </property>
+                  <property name="checkable">
+                   <bool>false</bool>
+                  </property>
+                  <property name="checked">
+                   <bool>false</bool>
                   </property>
                  </widget>
                 </item>
