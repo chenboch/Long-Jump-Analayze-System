@@ -165,7 +165,7 @@ def draw_skeleton(image, points, skeleton, color_palette='Set2', palette_samples
         skeleton_color = tuple(colors[person_index % len(colors)])
         skeleton_color = (0,255,0)
         if joint in right_skeleton:
-            skeleton_color = (255, 0, 0)
+            skeleton_color = (240, 176, 0)
         elif joint in left_skeleton:
             skeleton_color = (0, 0, 255)
         if pt1[2] > confidence_threshold and not pt1_unlabel and pt2[2] > confidence_threshold and not pt2_unlabel:

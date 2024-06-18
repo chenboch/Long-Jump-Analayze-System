@@ -323,7 +323,7 @@ class Ui_MainWindow(object):
         self.show_skeleton_checkBox.setObjectName("show_skeleton_checkBox")
         self.horizontalLayout_5.addWidget(self.show_skeleton_checkBox)
         self.show_bbox_checkbox = QtWidgets.QCheckBox(self.kpt_adjust_groupbox)
-        self.show_bbox_checkbox.setCheckable(False)
+        self.show_bbox_checkbox.setCheckable(True)
         self.show_bbox_checkbox.setChecked(False)
         self.show_bbox_checkbox.setObjectName("show_bbox_checkbox")
         self.horizontalLayout_5.addWidget(self.show_bbox_checkbox)

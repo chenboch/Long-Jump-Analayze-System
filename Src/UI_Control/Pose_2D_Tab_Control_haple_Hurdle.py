@@ -428,6 +428,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         
         image =  draw_set_line(image, self.line_pos)
         if len(self.analyze_information) > 0:
+           
             jump_frame = [self.jump_frame[0]- self.start_frame_num, self.jump_frame[1]-self.start_frame_num, self.jump_frame[2] - self.start_frame_num]
            
             show_jump_speed = True  if self.ui.frame_slider.value() > self.jump_frame[1] and self.jump_frame[0:2] != [0,0] else False

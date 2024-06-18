@@ -6,35 +6,36 @@ import numpy as np
 import sys
 import cv2
 import os
-from UI import Ui_MainWindow
+from UI_Control.UI import Ui_MainWindow
 import matplotlib.pyplot as plt
 import pandas as pd
 from argparse import ArgumentParser
 from argparse import ArgumentParser
 import cv2
 import numpy as np
-from lib.cv_thread import VideoToImagesThread
-from lib.util import DataType
-from lib.analyze import obtain_analyze_information
-from lib.timer import Timer
-from lib.vis_image import draw_set_line, draw_analyze_infromation, draw_bbox, draw_butt_point,draw_butt_width
-from lib.vis_pose import draw_points_and_skeleton, joints_dict
-from lib.vis_graph import init_graph, update_graph
-from Widget.store import Store_Widget
-from topdown_demo_with_mmdet import process_one_image
-from image_demo import detect_image
+sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\UI_Control")
+from UI_Control.lib.cv_thread import VideoToImagesThread
+from UI_Control.lib.util import DataType
+from UI_Control.lib.analyze import obtain_analyze_information
+from UI_Control.lib.timer import Timer
+from UI_Control.lib.vis_image import draw_set_line, draw_analyze_infromation, draw_bbox, draw_butt_point,draw_butt_width
+from UI_Control.lib.vis_pose import draw_points_and_skeleton, joints_dict
+from UI_Control.lib.vis_graph import init_graph, update_graph
+from UI_Control.Widget.store import Store_Widget
+from UI_Control.topdown_demo_with_mmdet import process_one_image
+from UI_Control.image_demo import detect_image
 from mmcv.transforms import Compose
 from mmengine.logging import print_log
 import sys
-sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\tracker")
-sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
+# sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\tracker")
+# sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
 from pathlib import Path
 from tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
 # from detect import YOLOV7Model
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
-from lib.one_euro_filter import OneEuroFilter
+from UI_Control.lib.one_euro_filter import OneEuroFilter
 import pyqtgraph as pg
 # 設置背景和前景顏色
 
