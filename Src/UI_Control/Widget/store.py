@@ -65,7 +65,7 @@ class Store_Widget(QtWidgets.QWidget):
             QMessageBox.warning(self, "儲存影片失敗", "請不要多次按下儲存影片按鈕!")
             return
         self.saving_video = True
-        output_folder = f"../../Db/output/{self.video_name}"
+        output_folder = f"../Db/output/{self.video_name}"
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)    
         os.makedirs(output_folder)
@@ -87,7 +87,7 @@ class Store_Widget(QtWidgets.QWidget):
         save_person_df.to_json(json_path, orient='records')
         video_size = (1280, 720)
         fps = 30.0
-        save_location = "../../Db/output/" + self.video_name + "/" + self.video_name + ".mp4"
+        save_location = "../Db/output/" + self.video_name + "/" + self.video_name + ".mp4"
 
         video_writer = cv2.VideoWriter(save_location, cv2.VideoWriter_fourcc(*'mp4v'), fps, video_size)
 

@@ -1,7 +1,7 @@
 import typing
 import cv2
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, Qt, QThread
-from lib.util import video_to_frame
+from .util import video_to_frame
 import numpy as np
 
 class VideoToImagesThread(QThread):

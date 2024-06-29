@@ -1,12 +1,14 @@
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import sys
 from collections import deque
 
-from tracker import matching
-from tracker.gmc import GMC
-from tracker.basetrack import BaseTrack, TrackState
-from tracker.kalman_filter import KalmanFilter
+from . import matching
+from .gmc import GMC
+from .basetrack import BaseTrack, TrackState
+from .kalman_filter import KalmanFilter
 
 from fast_reid.fast_reid_interfece import FastReIDInterface
 

@@ -13,7 +13,11 @@ from argparse import ArgumentParser
 from argparse import ArgumentParser
 import cv2
 import numpy as np
-sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\UI_Control")
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "UI_Control"))
+sys.path.append(os.path.join(current_dir, "tracker"))
+# print(sys.path)
 from UI_Control.lib.cv_thread import VideoToImagesThread
 from UI_Control.lib.util import DataType
 from UI_Control.lib.analyze import obtain_analyze_information
@@ -26,13 +30,13 @@ from UI_Control.topdown_demo_with_mmdet import process_one_image
 from UI_Control.image_demo import detect_image
 from mmcv.transforms import Compose
 from mmengine.logging import print_log
-import sys
-# sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\tracker")
-# sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
+
+# sys.path.append(os.path.join(current_dir, "tracker"))
+
+print(sys.path)
 from pathlib import Path
-from tracker.mc_bot_sort import BoTSORT
+from tracker.tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
-# from detect import YOLOV7Model
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from UI_Control.lib.one_euro_filter import OneEuroFilter
@@ -140,10 +144,10 @@ class Pose_2d_Tab_Control(QMainWindow):
             
     def add_parser(self):
         self.parser = ArgumentParser()
-        self.parser.add_argument('--det-config', default='../mmyolo_main/yolov7_x_syncbn_fast_8x16b-300e_coco.py', help='Config file for detection')
-        self.parser.add_argument('--det-checkpoint', default='../../Db/pretrain/yolov7_x_syncbn_fast_8x16b-300e_coco_20221124_215331-ef949a68.pth', help='Checkpoint file for detection')
-        self.parser.add_argument('--pose-config', default='../mmpose_main/configs/body_2d_keypoint/topdown_heatmap/haple/ViTPose_base_simple_halpe_256x192.py', help='Config file for pose')
-        self.parser.add_argument('--pose-checkpoint', default='../../Db/pretrain/best_coco_AP_epoch_f9_8.pth', help='Checkpoint file for pose')
+        self.parser.add_argument('--det-config', default='mmyolo_main/yolov7_x_syncbn_fast_8x16b-300e_coco.py', help='Config file for detection')
+        self.parser.add_argument('--det-checkpoint', default='../Db/pretrain/yolov7_x_syncbn_fast_8x16b-300e_coco_20221124_215331-ef949a68.pth', help='Checkpoint file for detection')
+        self.parser.add_argument('--pose-config', default='mmpose_main/configs/body_2d_keypoint/topdown_heatmap/haple/ViTPose_base_simple_halpe_256x192.py', help='Config file for pose')
+        self.parser.add_argument('--pose-checkpoint', default='../Db/pretrain/best_coco_AP_epoch_f9_8.pth', help='Checkpoint file for pose')
         self.parser.add_argument(
         '--device', default='cuda:0', help='Device used for inference')
         self.parser.add_argument(
@@ -346,9 +350,6 @@ class Pose_2d_Tab_Control(QMainWindow):
                 'keypoints': new_kpts
             })
         self.person_df = pd.DataFrame(self.person_data)
-        # if not self.person_df.empty:
-        #     print(self.person_df)
-        #     exit()
 
     def play_btn_clicked(self):
         if self.video_path == "":
@@ -476,9 +477,6 @@ class Pose_2d_Tab_Control(QMainWindow):
             self.analyze_information, self.jump_frame[2] = obtain_analyze_information(person_kpt, frame,self.start_frame_num,
                                                                   self.length_ratio,self.frame_ratio, self.jump_frame,
                                                                   self.line_pos) 
-            # print(self.analyze_information)
-            # if self.jump_frame[2] > 0:
-            #     print(self.analyze_information)
 
             self.graph = update_graph(self.graph,self.analyze_information)
 
@@ -697,7 +695,6 @@ class Pose_2d_Tab_Control(QMainWindow):
 
         # 確保要更正的人員ID和更正後的人員ID都在DataFrame中存在
         if (before_correct_id not in self.person_df['person_id'].unique()) or (after_correct_id not in self.person_df['person_id'].unique()):
-
             return
 
         # 獲取當前帧數

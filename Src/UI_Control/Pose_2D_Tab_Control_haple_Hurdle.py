@@ -31,7 +31,6 @@ sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
 from pathlib import Path
 from tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
-# from detect import YOLOV7Model
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter

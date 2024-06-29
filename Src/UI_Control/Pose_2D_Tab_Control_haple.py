@@ -26,12 +26,13 @@ from image_demo import detect_image
 from mmcv.transforms import Compose
 from mmengine.logging import print_log
 import sys
-sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\tracker")
-sys.path.append("c:\\users\\chenbo\\desktop\\pose\\Src\\yolov7")
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 添加相對於當前文件的父目錄的子目錄到系統路徑
+sys.path.append(os.path.join(current_dir, "..", "tracker"))
 from pathlib import Path
 from tracker.mc_bot_sort import BoTSORT
 from tracker.tracking_utils.timer import Timer
-# from detect import YOLOV7Model
 from mmpose.apis import init_model as init_pose_estimator
 from mmpose.utils import adapt_mmdet_pipeline
 from lib.one_euro_filter import OneEuroFilter
@@ -122,6 +123,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         self.video_name = ""
         self.length_ratio = 0
         self.start_frame_num = 0
+        self.end_frame_num = 0
         self.line_pos = []
         self.is_set_length = False
         self.analyze_information = {}
@@ -234,7 +236,6 @@ class Pose_2d_Tab_Control(QMainWindow):
             QMessageBox.warning(self, "讀取影片失敗", "請先停止播放影片!")
             return
         self.init_var()
-        
         self.video_path = self.load_data(
                 label_item, path, None, DataType.VIDEO)       
         # no video found
@@ -413,7 +414,7 @@ class Pose_2d_Tab_Control(QMainWindow):
     
         if self.ui.frame_slider.value() == (self.total_images-1):
             self.ui.play_btn.click()
-
+        print(self.runner_analyze)
         if self.runner_analyze:
             self.analyze_person(frame_num)
         else:
@@ -474,10 +475,7 @@ class Pose_2d_Tab_Control(QMainWindow):
         if frame > self.start_frame_num:
             self.analyze_information, self.jump_frame[2] = obtain_analyze_information(person_kpt, frame,self.start_frame_num,
                                                                   self.length_ratio,self.frame_ratio, self.jump_frame,
-                                                                  self.line_pos) 
-            # print(self.analyze_information)
-            # if self.jump_frame[2] > 0:
-            #     print(self.analyze_information)
+                                                                  self.line_pos,self.end_frame_num) 
 
             self.graph = update_graph(self.graph,self.analyze_information)
 
@@ -497,6 +495,9 @@ class Pose_2d_Tab_Control(QMainWindow):
         return person_kpt
 
     def start_runner_analyze(self):
+        if len(self.line_pos) < 1:
+            QMessageBox.warning(self, "尚未設定長度", "請先設定長度!")
+            return
         self.ui.frame_slider.setValue(0)
         self.runner_analyze = True
         if not self.person_df.empty:
@@ -673,7 +674,8 @@ class Pose_2d_Tab_Control(QMainWindow):
             process_frame_nums = self.person_df['frame_number'].unique()
             self.processed_frames = sorted(set(frame_num for frame_num in process_frame_nums if frame_num!=0) )
             self.start_frame_num = min(self.processed_frames) - 1
-            # print(self.start_frame_num)
+            self.end_frame_num = max(self.processed_frames) - 1
+
         except Exception as e:
             print(f"加载 JSON 文件时出错：{e}")
 
@@ -682,7 +684,9 @@ class Pose_2d_Tab_Control(QMainWindow):
         print(self.frame_ratio)
         font = QFont()
         font.setPixelSize(15)
-        self.graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
+        # self.graph.setLabel('bottom', f'Frame (fps: {self.ui.fps_input.value()})')
+
+        self.graph.setLabel('bottom', f'<span style = "font-size: 18px" >幀 (fps: {self.ui.fps_input.value()})</span>')
         self.graph.getAxis("bottom").setStyle(tickFont=font)    
        
     def correct_person_id(self):
